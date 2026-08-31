@@ -13,10 +13,16 @@ interface Vendor {
 export default function HomePage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchVendors() {
+    async function initPage() {
       try {
+        // Fetch User Session
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) setUserEmail(user.email || null);
+
+        // Fetch Vendors
         const { data, error } = await supabase.from('vendors').select('*');
         if (error) {
           console.error('Error fetching vendors:', error.message);
@@ -30,14 +36,14 @@ export default function HomePage() {
       }
     }
 
-    fetchVendors();
+    initPage();
   }, []);
 
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-8">
         
-        {/* Top Header Navigation */}
+        {/* Header Section with Login & Order Links */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b pb-6 border-gray-200">
           <div>
             <span className="text-xs font-extrabold tracking-widest text-emerald-600 uppercase">
@@ -50,12 +56,31 @@ export default function HomePage() {
               Order food from campus vendors without standing in line.
             </p>
           </div>
-          <Link
-            href="/orders"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm transition-colors whitespace-nowrap"
-          >
-            📋 Track My Orders
-          </Link>
+
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
+            {userEmail ? (
+              <Link
+                href="/orders"
+                className="bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              >
+                👤 {userEmail.split('@')[0]}
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              >
+                🔐 Login / Sign Up
+              </Link>
+            )}
+
+            <Link
+              href="/orders"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+            >
+              📋 Track Orders
+            </Link>
+          </div>
         </div>
 
         {/* Vendors List Section */}
