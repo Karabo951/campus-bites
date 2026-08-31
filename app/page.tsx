@@ -44,7 +44,7 @@ export default function HomePage() {
               Campus Bites
             </h1>
             <p className="text-gray-600 text-sm mt-1">
-              Select a vendor to order food or open the kitchen display.
+              Order food, access the kitchen display, or manage vendor menus.
             </p>
           </div>
 
@@ -59,7 +59,7 @@ export default function HomePage() {
         {/* Vendors List */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
           <h2 className="text-xs font-bold tracking-wider text-gray-400 uppercase">
-            Campus Vendors & Kitchen Portals
+            Campus Vendors & Admin Portals
           </h2>
 
           {loading ? (
@@ -87,19 +87,25 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    {/* Dual Buttons: Customer View + Kitchen View */}
-                    <div className="flex gap-2">
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-3 gap-1.5">
                       <Link
                         href={`/vendor/${targetId}`}
-                        className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors"
+                        className="text-center bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-2 rounded-lg transition-colors"
                       >
-                        🛒 Order Food
+                        🛒 Order
                       </Link>
                       <Link
                         href={`/kitchen/${targetId}`}
-                        className="flex-1 text-center bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors"
+                        className="text-center bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold py-2 rounded-lg transition-colors"
                       >
-                        👨‍🍳 Kitchen View
+                        👨‍🍳 Kitchen
+                      </Link>
+                      <Link
+                        href={`/admin/${targetId}`}
+                        className="text-center bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold py-2 rounded-lg transition-colors border border-gray-300"
+                      >
+                        ⚙️ Admin
                       </Link>
                     </div>
                   </div>
@@ -112,15 +118,21 @@ export default function HomePage() {
               <div className="flex gap-2">
                 <Link
                   href="/vendor/v1"
-                  className="bg-emerald-600 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors"
+                  className="bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-lg"
                 >
-                  Customer View (v1)
+                  Customer View
                 </Link>
                 <Link
                   href="/kitchen/v1"
-                  className="bg-slate-800 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-slate-900 transition-colors"
+                  className="bg-slate-800 text-white text-xs font-bold py-2 px-3 rounded-lg"
                 >
-                  Kitchen View (v1)
+                  Kitchen View
+                </Link>
+                <Link
+                  href="/admin/v1"
+                  className="bg-gray-200 text-gray-800 text-xs font-bold py-2 px-3 rounded-lg"
+                >
+                  Admin View
                 </Link>
               </div>
             </div>
