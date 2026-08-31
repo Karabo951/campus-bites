@@ -4,19 +4,8 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { vendorId, itemName, price, paymentMethod } = body;
+    const { vendorId, itemName, price, paymentMethod, userId, customerName, customerPhone } = body;
 
-    // 1. Simulate payment gateway verification (Stripe / PayFast / Card verification)
-    const isPaymentSuccessful = true; // Set to true after gateway hook
-
-    if (!isPaymentSuccessful) {
-      return NextResponse.json(
-        { error: 'Payment failed or was declined.' },
-        { status: 400 }
-      );
-    }
-
-    // 2. Insert verified order into Supabase
     const { data, error } = await supabase
       .from('orders')
       .insert([
@@ -27,6 +16,9 @@ export async function POST(request: Request) {
           status: 'pending',
           payment_status: 'paid',
           payment_method: paymentMethod || 'card',
+          user_id: userId || null,
+          customer_name: customerName || 'Guest Student',
+          customer_phone: customerPhone || 'N/A',
         },
       ])
       .select()
