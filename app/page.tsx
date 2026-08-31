@@ -22,7 +22,7 @@ export default function HomePage() {
         else if (data) setVendors(data);
       } catch (err) {
         console.error('Unexpected error:', err);
-      } font-medium {
+      } finally {
         setLoading(false);
       }
     }
