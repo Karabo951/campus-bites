@@ -87,7 +87,7 @@ export default function VendorMenuPage({
               Campus Bites Menu
             </span>
             <h1 className="text-2xl font-bold text-gray-900 capitalize">
-              Main Campus Grill
+              Vendor Menu ({vendorId})
             </h1>
           </div>
           <Link
@@ -98,7 +98,7 @@ export default function VendorMenuPage({
           </Link>
         </div>
 
-        {/* Order Success/Error Alert */}
+        {/* Order Alert Banner */}
         {orderMessage && (
           <div
             className={`p-4 rounded-lg text-xs font-bold ${
@@ -111,7 +111,7 @@ export default function VendorMenuPage({
           </div>
         )}
 
-        {/* Menu Items Container */}
+        {/* Menu Items Grid */}
         {loading ? (
           <div className="bg-white p-8 rounded-xl border border-gray-100 text-center">
             <p className="text-gray-500 text-sm">Loading food menu...</p>

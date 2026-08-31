@@ -25,8 +25,9 @@ export default function HomePage() {
         }
       } catch (err) {
         console.error('Unexpected error:', err);
-      } font-semibold;
-      setLoading(false);
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchVendors();
@@ -36,8 +37,8 @@ export default function HomePage() {
     <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-8">
         
-        {/* Header Section with Navigation */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b pb-6">
+        {/* Top Header Navigation */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b pb-6 border-gray-200">
           <div>
             <span className="text-xs font-extrabold tracking-widest text-emerald-600 uppercase">
               Official Campus App
@@ -46,7 +47,7 @@ export default function HomePage() {
               Campus Bites
             </h1>
             <p className="text-gray-600 text-sm mt-1">
-              Order food from campus vendors without waiting in line.
+              Order food from campus vendors without standing in line.
             </p>
           </div>
           <Link
@@ -57,7 +58,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* Vendors Section */}
+        {/* Vendors List Section */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
           <h2 className="text-xs font-bold tracking-wider text-gray-400 uppercase">
             Available Vendors
@@ -90,7 +91,7 @@ export default function HomePage() {
 
                     <div className="flex gap-2 pt-2">
                       <Link
-                        href={`/vendor/${vendorId}`}
+                        href={`/vendors/${vendorId}`}
                         className="flex-1 text-center bg-emerald-600 text-white text-xs font-semibold py-2 px-3 rounded hover:bg-emerald-700 transition-colors"
                       >
                         Order Food
@@ -108,7 +109,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-gray-500 text-sm">No vendors listed yet.</p>
+              <p className="text-gray-500 text-sm">No vendors listed in Supabase yet.</p>
               <Link
                 href="/vendor/v1"
                 className="inline-block bg-emerald-600 text-white text-xs font-semibold py-2 px-4 rounded hover:bg-emerald-700 transition-colors"
@@ -120,7 +121,7 @@ export default function HomePage() {
 
           <hr className="border-gray-100" />
 
-          {/* Quick Links */}
+          {/* Direct Shortcuts */}
           <div className="flex gap-3">
             <Link
               href="/vendor/v1"
