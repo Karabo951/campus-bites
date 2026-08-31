@@ -69,10 +69,10 @@ export default function HomePage() {
           ) : vendors.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {vendors.map((vendor) => {
-                const vendorId = vendor.id || 'v1';
+                const targetId = vendor.id || 'v1';
                 return (
                   <div
-                    key={vendorId}
+                    key={targetId}
                     className="p-4 border border-gray-200 rounded-lg hover:border-emerald-500 transition-colors flex flex-col justify-between space-y-3"
                   >
                     <div>
@@ -91,13 +91,13 @@ export default function HomePage() {
 
                     <div className="flex gap-2 pt-2">
                       <Link
-                        href={`/vendors/${vendorId}`}
+                        href={`/vendor/${targetId}`}
                         className="flex-1 text-center bg-emerald-600 text-white text-xs font-semibold py-2 px-3 rounded hover:bg-emerald-700 transition-colors"
                       >
                         Order Food
                       </Link>
                       <Link
-                        href={`/kitchen/${vendorId}`}
+                        href={`/kitchen/${targetId}`}
                         className="text-center bg-gray-100 text-gray-700 text-xs font-semibold py-2 px-3 rounded hover:bg-gray-200 transition-colors"
                       >
                         KDS View
@@ -109,7 +109,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-gray-500 text-sm">No vendors listed in Supabase yet.</p>
+              <p className="text-gray-500 text-sm">No vendors listed in database yet.</p>
               <Link
                 href="/vendor/v1"
                 className="inline-block bg-emerald-600 text-white text-xs font-semibold py-2 px-4 rounded hover:bg-emerald-700 transition-colors"
@@ -127,13 +127,13 @@ export default function HomePage() {
               href="/vendor/v1"
               className="flex-1 text-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs py-3 px-4 rounded-lg transition-colors"
             >
-              Menu Portal
+              Menu Portal (v1)
             </Link>
             <Link
               href="/kitchen/v1"
               className="flex-1 text-center bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs py-3 px-4 rounded-lg transition-colors"
             >
-              Kitchen Display
+              Kitchen Display (v1)
             </Link>
           </div>
         </div>
