@@ -22,7 +22,7 @@ export default function HomePage() {
         else if (data) setVendors(data);
       } catch (err) {
         console.error('Unexpected error:', err);
-      } finally {
+      } font-medium {
         setLoading(false);
       }
     }
@@ -44,7 +44,7 @@ export default function HomePage() {
               Campus Bites
             </h1>
             <p className="text-gray-600 text-sm mt-1">
-              Select a vendor to order food instantly.
+              Select a vendor to order food or open the kitchen display.
             </p>
           </div>
 
@@ -59,11 +59,11 @@ export default function HomePage() {
         {/* Vendors List */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
           <h2 className="text-xs font-bold tracking-wider text-gray-400 uppercase">
-            Available Campus Vendors
+            Campus Vendors & Kitchen Portals
           </h2>
 
           {loading ? (
-            <p className="text-gray-500 text-sm">Loading food stalls...</p>
+            <p className="text-gray-500 text-sm">Loading campus vendors...</p>
           ) : vendors.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2">
               {vendors.map((vendor) => {
@@ -71,7 +71,7 @@ export default function HomePage() {
                 return (
                   <div
                     key={targetId}
-                    className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between space-y-3 hover:border-emerald-500 transition-colors"
+                    className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between space-y-4 hover:border-emerald-500 transition-colors"
                   >
                     <div>
                       <div className="flex items-center justify-between">
@@ -87,25 +87,42 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <Link
-                      href={`/vendor/${targetId}`}
-                      className="text-center bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-emerald-700 transition-colors"
-                    >
-                      Browse Menu & Order
-                    </Link>
+                    {/* Dual Buttons: Customer View + Kitchen View */}
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/vendor/${targetId}`}
+                        className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors"
+                      >
+                        🛒 Order Food
+                      </Link>
+                      <Link
+                        href={`/kitchen/${targetId}`}
+                        className="flex-1 text-center bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition-colors"
+                      >
+                        👨‍🍳 Kitchen View
+                      </Link>
+                    </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 border p-4 rounded-lg bg-gray-50">
               <p className="text-gray-500 text-sm">No vendors listed in database yet.</p>
-              <Link
-                href="/vendor/v1"
-                className="inline-block bg-emerald-600 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors"
-              >
-                Go to Default Menu (v1)
-              </Link>
+              <div className="flex gap-2">
+                <Link
+                  href="/vendor/v1"
+                  className="bg-emerald-600 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  Customer View (v1)
+                </Link>
+                <Link
+                  href="/kitchen/v1"
+                  className="bg-slate-800 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-slate-900 transition-colors"
+                >
+                  Kitchen View (v1)
+                </Link>
+              </div>
             </div>
           )}
         </div>
