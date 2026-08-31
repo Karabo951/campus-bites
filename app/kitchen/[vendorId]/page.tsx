@@ -8,6 +8,8 @@ interface Order {
   id: number;
   item_name: string;
   price: number;
+  customer_name?: string;
+  customer_phone?: string;
   status: 'pending' | 'preparing' | 'ready' | 'completed';
   created_at: string;
 }
@@ -44,6 +46,7 @@ export default function KitchenDisplayPage({
       .from('orders')
       .select('*')
       .eq('vendor_id', vendorId)
+      .neq('status', 'completed')
       .order('created_at', { ascending: false });
 
     if (data) setOrders(data);
@@ -87,15 +90,15 @@ export default function KitchenDisplayPage({
         <div className="flex justify-between items-center border-b border-slate-700 pb-4">
           <div>
             <h1 className="text-2xl font-bold text-emerald-400">Kitchen Display System (KDS)</h1>
-            <p className="text-slate-400 text-xs">Vendor ID: {vendorId} • Live Updates & Sound Active</p>
+            <p className="text-slate-400 text-xs">Vendor ID: {vendorId} • Live Orders & Sound Active</p>
           </div>
           <Link href="/" className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700 transition-colors">
-            ← Main App
+            ← Home
           </Link>
         </div>
 
         {orders.length === 0 ? (
-          <p className="text-slate-400 text-sm">No incoming orders yet.</p>
+          <p className="text-slate-400 text-sm">No incoming orders right now.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
             {orders.map((order) => (
@@ -110,19 +113,32 @@ export default function KitchenDisplayPage({
                 }`}
               >
                 <div>
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Order #{order.id}</span>
+                  <div className="flex justify-between text-xs text-slate-400 border-b border-slate-700/50 pb-2">
+                    <span className="font-mono">Order #{order.id}</span>
                     <span>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
-                  <h3 className="font-bold text-lg text-white mt-2">{order.item_name}</h3>
-                  <p className="text-xs font-semibold mt-1">R{Number(order.price).toFixed(2)}</p>
+
+                  <h3 className="font-bold text-lg text-white mt-3">{order.item_name}</h3>
+                  <p className="text-xs font-semibold text-emerald-400 mt-0.5">R{Number(order.price).toFixed(2)}</p>
+
+                  {/* Customer Contact Details */}
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg mt-3 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Customer:</span>
+                      <span className="font-bold text-white">{order.customer_name || 'Guest'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Phone:</span>
+                      <span className="font-bold text-amber-400">{order.customer_phone || 'N/A'}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">
                   {order.status === 'pending' && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'preparing')}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded transition-colors"
+                      className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
                       Start Preparing
                     </button>
@@ -130,7 +146,7 @@ export default function KitchenDisplayPage({
                   {order.status === 'preparing' && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'ready')}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded transition-colors"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
                       Mark Ready for Pickup
                     </button>
@@ -138,9 +154,9 @@ export default function KitchenDisplayPage({
                   {order.status === 'ready' && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'completed')}
-                      className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold py-2 rounded transition-colors"
+                      className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
-                      Complete & Archive
+                      Complete Ticket
                     </button>
                   )}
                 </div>

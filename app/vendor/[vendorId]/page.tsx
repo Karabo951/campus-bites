@@ -18,7 +18,6 @@ interface OrderReceipt {
   price: number;
   customerName: string;
   customerPhone: string;
-  paymentMethod: string;
   createdAt: string;
 }
 
@@ -33,15 +32,14 @@ export default function VendorMenuPage({
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  
-  // Customer Details & Checkout State
+
+  // Customer Contact State
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'snapscan' | 'cash'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  
-  // Completed Order Receipt State
+
+  // Receipt Slip State
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
 
   useEffect(() => {
@@ -67,12 +65,12 @@ export default function VendorMenuPage({
     fetchMenu();
   }, [vendorId]);
 
-  const handlePayAndOrder = async (e: React.FormEvent) => {
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
 
     if (!customerName.trim() || !customerPhone.trim()) {
-      setOrderError('Please fill in your name and phone number.');
+      setOrderError('Please provide your name and phone number.');
       return;
     }
 
@@ -80,40 +78,37 @@ export default function VendorMenuPage({
     setOrderError(null);
 
     try {
-      // 1. Send Order with Customer Details to API
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorId,
-          itemName: selectedItem.name,
-          price: selectedItem.price,
-          paymentMethod,
-          customerName,
-          customerPhone,
-        }),
-      });
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([
+          {
+            vendor_id: vendorId,
+            item_name: selectedItem.name,
+            price: selectedItem.price,
+            status: 'pending',
+            customer_name: customerName,
+            customer_phone: customerPhone,
+          },
+        ])
+        .select()
+        .single();
 
-      const result = await res.json();
+      if (error) throw error;
 
-      if (!res.ok) {
-        throw new Error(result.error || 'Payment failed');
-      }
-
-      // 2. Build digital receipt slip
+      // Show receipt slip
       setReceipt({
-        id: result.order.id,
+        id: data.id,
         itemName: selectedItem.name,
         price: selectedItem.price,
         customerName,
         customerPhone,
-        paymentMethod,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
 
       setSelectedItem(null);
     } catch (err: any) {
-      setOrderError(err.message || 'Processing failed. Try again.');
+      console.error('Order submission error:', err);
+      setOrderError(err.message || 'Failed to submit order. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -123,7 +118,7 @@ export default function VendorMenuPage({
     <main className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
         
-        {/* Navigation Header */}
+        {/* Header Navigation */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-4">
           <div>
             <span className="text-xs font-extrabold tracking-widest text-emerald-600 uppercase">
@@ -137,14 +132,14 @@ export default function VendorMenuPage({
             href="/"
             className="text-xs font-semibold bg-white border border-gray-300 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-50 transition-colors"
           >
-            ← Back to Home
+            ← Home
           </Link>
         </div>
 
-        {/* Menu Items Grid */}
+        {/* Menu Grid */}
         {loading ? (
           <div className="bg-white p-8 rounded-xl border border-gray-100 text-center">
-            <p className="text-gray-500 text-sm">Loading food menu...</p>
+            <p className="text-gray-500 text-sm">Loading menu items...</p>
           </div>
         ) : items.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -179,7 +174,7 @@ export default function VendorMenuPage({
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  {item.is_available ? 'Order & Pay' : 'Currently Unavailable'}
+                  {item.is_available ? 'Order Food' : 'Unavailable'}
                 </button>
               </div>
             ))}
@@ -190,12 +185,12 @@ export default function VendorMenuPage({
           </div>
         )}
 
-        {/* Checkout & Customer Details Modal */}
+        {/* Contact Input Modal */}
         {selectedItem && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
               <div className="flex justify-between items-center border-b pb-3">
-                <h3 className="text-lg font-bold text-gray-900">Customer Details & Payment</h3>
+                <h3 className="text-lg font-bold text-gray-900">Enter Details for Order</h3>
                 <button
                   onClick={() => setSelectedItem(null)}
                   className="text-gray-400 hover:text-gray-600 font-bold text-lg"
@@ -210,7 +205,7 @@ export default function VendorMenuPage({
                 </div>
               )}
 
-              <form onSubmit={handlePayAndOrder} className="space-y-4">
+              <form onSubmit={handlePlaceOrder} className="space-y-4">
                 <div className="bg-gray-50 p-3 rounded-lg flex justify-between text-xs">
                   <span className="font-bold text-gray-700">{selectedItem.name}</span>
                   <span className="font-extrabold text-emerald-600">
@@ -219,19 +214,19 @@ export default function VendorMenuPage({
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-700 uppercase">Your Name / Student ID</label>
+                  <label className="text-xs font-bold text-gray-700 uppercase">Your Name</label>
                   <input
                     type="text"
                     required
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g., Karabo M."
+                    placeholder="e.g., Karabo"
                     className="mt-1 w-full p-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-emerald-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-700 uppercase">Cell / Phone Number</label>
+                  <label className="text-xs font-bold text-gray-700 uppercase">Phone Number</label>
                   <input
                     type="tel"
                     required
@@ -242,65 +237,26 @@ export default function VendorMenuPage({
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-gray-400">Payment Option</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-2.5 text-xs font-bold rounded-lg border ${
-                        paymentMethod === 'card'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 text-gray-600'
-                      }`}
-                    >
-                      💳 Card
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('snapscan')}
-                      className={`p-2.5 text-xs font-bold rounded-lg border ${
-                        paymentMethod === 'snapscan'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 text-gray-600'
-                      }`}
-                    >
-                      📱 QR / Snap
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`p-2.5 text-xs font-bold rounded-lg border ${
-                        paymentMethod === 'cash'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                          : 'border-gray-200 text-gray-600'
-                      }`}
-                    >
-                      💵 Cash
-                    </button>
-                  </div>
-                </div>
-
                 <button
                   type="submit"
                   disabled={isProcessing}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3 rounded-xl shadow-md transition-colors disabled:opacity-50"
                 >
-                  {isProcessing ? 'Submitting Order...' : 'Confirm Order & Get Slip'}
+                  {isProcessing ? 'Placing Order...' : 'Confirm Order'}
                 </button>
               </form>
             </div>
           </div>
         )}
 
-        {/* Digital Receipt Slip Modal (Screenshot Ready) */}
+        {/* Digital Slip Modal */}
         {receipt && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-5 border-2 border-dashed border-emerald-500 shadow-2xl relative">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-5 border-2 border-dashed border-emerald-500 shadow-2xl">
               
               <div className="text-center space-y-1">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                  Official Campus Bites Slip
+                  Campus Bites Receipt Slip
                 </span>
                 <h2 className="text-2xl font-black text-gray-900">ORDER #{receipt.id}</h2>
                 <p className="text-xs text-gray-500">📸 Screenshot this slip for pickup!</p>
@@ -308,15 +264,15 @@ export default function VendorMenuPage({
 
               <div className="bg-gray-50 p-4 rounded-xl space-y-3 text-xs border border-gray-100">
                 <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-500">Item Name:</span>
+                  <span className="text-gray-500">Item:</span>
                   <span className="font-bold text-gray-900">{receipt.itemName}</span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-500">Amount Paid:</span>
+                  <span className="text-gray-500">Price:</span>
                   <span className="font-extrabold text-emerald-600">R{Number(receipt.price).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-500">Customer:</span>
+                  <span className="text-gray-500">Name:</span>
                   <span className="font-bold text-gray-900">{receipt.customerName}</span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
@@ -324,7 +280,7 @@ export default function VendorMenuPage({
                   <span className="font-bold text-gray-900">{receipt.customerPhone}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Time:</span>
+                  <span className="text-gray-500">Placed At:</span>
                   <span className="font-semibold text-gray-700">{receipt.createdAt}</span>
                 </div>
               </div>
@@ -334,13 +290,13 @@ export default function VendorMenuPage({
                   href="/orders"
                   className="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl transition-colors"
                 >
-                  📋 Track Order Progress Live
+                  📋 Track Order Status Live
                 </Link>
                 <button
                   onClick={() => setReceipt(null)}
                   className="w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs py-2 rounded-xl transition-colors"
                 >
-                  Close & Back to Menu
+                  Done
                 </button>
               </div>
 
