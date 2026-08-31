@@ -4,17 +4,25 @@ import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
+interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 interface Order {
   id: number;
   item_name: string;
   price: number;
+  items?: CartItem[];
+  notes?: string;
   customer_name?: string;
   customer_phone?: string;
   status: 'pending' | 'preparing' | 'ready' | 'completed';
   created_at: string;
 }
 
-// Vendor PIN mappings (Default PIN: 1234)
 const VENDOR_PINS: Record<string, string> = {
   v1: '1234',
   v2: '5678',
@@ -28,23 +36,19 @@ export default function KitchenDisplayPage({
   const resolvedParams = use(params);
   const vendorId = resolvedParams.vendorId || 'v1';
 
-  // PIN Auth State
   const [pinInput, setPinInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
-
-  // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const correctPin = VENDOR_PINS[vendorId] || '1234';
-
     if (pinInput === correctPin) {
       setIsAuthenticated(true);
       setPinError(null);
     } else {
-      setPinError('Incorrect PIN. Try default PIN: 1234');
+      setPinError('Incorrect PIN. Default PIN: 1234');
       setPinInput('');
     }
   };
@@ -62,7 +66,6 @@ export default function KitchenDisplayPage({
 
   useEffect(() => {
     if (!isAuthenticated) return;
-
     fetchOrders();
 
     const channel = supabase
@@ -80,7 +83,6 @@ export default function KitchenDisplayPage({
   const updateOrderStatus = async (order: Order, newStatus: string) => {
     await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
 
-    // Trigger SMS notification when marked Ready
     if (newStatus === 'ready' && order.customer_phone) {
       try {
         await fetch('/api/send-sms', {
@@ -94,14 +96,13 @@ export default function KitchenDisplayPage({
           }),
         });
       } catch (err) {
-        console.error('Failed to dispatch SMS:', err);
+        console.error('Failed to trigger SMS:', err);
       }
     }
 
     fetchOrders();
   };
 
-  // STEP 1: PIN Authentication Screen
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -133,7 +134,6 @@ export default function KitchenDisplayPage({
               placeholder="••••"
               className="w-full text-center text-3xl font-mono tracking-widest py-3 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-emerald-500"
             />
-
             <button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm py-3 rounded-xl transition-colors"
@@ -142,10 +142,7 @@ export default function KitchenDisplayPage({
             </button>
           </form>
 
-          <Link
-            href="/"
-            className="block text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
+          <Link href="/" className="block text-xs text-slate-500 hover:text-slate-300">
             ← Cancel & Return Home
           </Link>
         </div>
@@ -153,35 +150,33 @@ export default function KitchenDisplayPage({
     );
   }
 
-  // STEP 2: Authenticated Kitchen Display
   return (
     <main className="min-h-screen bg-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Top KDS Header */}
+        {/* KDS Header */}
         <div className="flex justify-between items-center border-b border-slate-700 pb-4">
           <div>
-            <h1 className="text-2xl font-bold text-emerald-400">Kitchen Display & Dispatch</h1>
+            <h1 className="text-2xl font-bold text-emerald-400">Kitchen Display System</h1>
             <p className="text-slate-400 text-xs">Vendor ID: {vendorId} • Active Kitchen Session</p>
           </div>
-
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsAuthenticated(false)}
-              className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700 transition-colors"
+              className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700"
             >
               🔒 Lock KDS
             </button>
             <Link
               href="/"
-              className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700 transition-colors"
+              className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700"
             >
               ← Home
             </Link>
           </div>
         </div>
 
-        {/* Live Orders Display */}
+        {/* Orders Grid */}
         {orders.length === 0 ? (
           <div className="bg-slate-950/50 border border-slate-800 p-12 rounded-2xl text-center space-y-2">
             <p className="text-slate-300 font-bold text-base">No active kitchen orders</p>
@@ -206,9 +201,28 @@ export default function KitchenDisplayPage({
                     <span>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
 
-                  <h3 className="font-bold text-lg text-white mt-3">{order.item_name}</h3>
-                  <p className="text-xs font-semibold text-emerald-400 mt-0.5">
-                    R{Number(order.price).toFixed(2)}
+                  {/* Multi-Item Breakdown */}
+                  <div className="mt-3 space-y-1">
+                    {order.items && order.items.length > 0 ? (
+                      order.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm font-bold text-white">
+                          <span>{item.quantity}x {item.name}</span>
+                          <span className="text-slate-400 text-xs">R{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <h3 className="font-bold text-lg text-white">{order.item_name}</h3>
+                    )}
+                  </div>
+
+                  {order.notes && (
+                    <div className="mt-2 text-xs bg-amber-900/60 border border-amber-600/40 p-2 rounded text-amber-200">
+                      <span className="font-bold">Note:</span> {order.notes}
+                    </div>
+                  )}
+
+                  <p className="text-xs font-semibold text-emerald-400 mt-2">
+                    Total: R{Number(order.price).toFixed(2)}
                   </p>
 
                   <div className="bg-slate-800/80 p-2.5 rounded-lg mt-3 text-xs space-y-1">
