@@ -24,23 +24,6 @@ export default function KitchenDisplayPage({
 
   const [orders, setOrders] = useState<Order[]>([]);
 
-  const playChime = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    } catch (err) {
-      console.error('Audio playback error:', err);
-    }
-  };
-
   const fetchOrders = async () => {
     const { data } = await supabase
       .from('orders')
@@ -56,22 +39,10 @@ export default function KitchenDisplayPage({
     fetchOrders();
 
     const channel = supabase
-      .channel('kds-orders')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        () => {
-          playChime();
-          fetchOrders();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
-        () => {
-          fetchOrders();
-        }
-      )
+      .channel('kds-orders-notification')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
       .subscribe();
 
     return () => {
@@ -79,8 +50,28 @@ export default function KitchenDisplayPage({
     };
   }, [vendorId]);
 
-  const updateOrderStatus = async (orderId: number, status: string) => {
-    await supabase.from('orders').update({ status }).eq('id', orderId);
+  const updateOrderStatus = async (order: Order, newStatus: string) => {
+    // 1. Update status in database
+    await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+
+    // 2. Trigger SMS if status changes to "ready"
+    if (newStatus === 'ready' && order.customer_phone) {
+      try {
+        await fetch('/api/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: order.customer_phone,
+            customerName: order.customer_name || 'Customer',
+            orderId: order.id,
+            itemName: order.item_name,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to trigger SMS notification:', err);
+      }
+    }
+
     fetchOrders();
   };
 
@@ -89,8 +80,8 @@ export default function KitchenDisplayPage({
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex justify-between items-center border-b border-slate-700 pb-4">
           <div>
-            <h1 className="text-2xl font-bold text-emerald-400">Kitchen Display System (KDS)</h1>
-            <p className="text-slate-400 text-xs">Vendor ID: {vendorId} • Live Orders & Sound Active</p>
+            <h1 className="text-2xl font-bold text-emerald-400">Kitchen Display & Dispatch</h1>
+            <p className="text-slate-400 text-xs">Vendor ID: {vendorId} • Auto SMS Enabled</p>
           </div>
           <Link href="/" className="bg-slate-800 text-slate-300 text-xs px-3 py-2 rounded border border-slate-700 hover:bg-slate-700 transition-colors">
             ← Home
@@ -121,7 +112,6 @@ export default function KitchenDisplayPage({
                   <h3 className="font-bold text-lg text-white mt-3">{order.item_name}</h3>
                   <p className="text-xs font-semibold text-emerald-400 mt-0.5">R{Number(order.price).toFixed(2)}</p>
 
-                  {/* Customer Contact Details */}
                   <div className="bg-slate-800/80 p-2.5 rounded-lg mt-3 text-xs space-y-1">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Customer:</span>
@@ -137,7 +127,7 @@ export default function KitchenDisplayPage({
                 <div className="flex gap-2 pt-2">
                   {order.status === 'pending' && (
                     <button
-                      onClick={() => updateOrderStatus(order.id, 'preparing')}
+                      onClick={() => updateOrderStatus(order, 'preparing')}
                       className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
                       Start Preparing
@@ -145,15 +135,15 @@ export default function KitchenDisplayPage({
                   )}
                   {order.status === 'preparing' && (
                     <button
-                      onClick={() => updateOrderStatus(order.id, 'ready')}
+                      onClick={() => updateOrderStatus(order, 'ready')}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
-                      Mark Ready for Pickup
+                      Mark Ready (Send SMS)
                     </button>
                   )}
                   {order.status === 'ready' && (
                     <button
-                      onClick={() => updateOrderStatus(order.id, 'completed')}
+                      onClick={() => updateOrderStatus(order, 'completed')}
                       className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold py-2.5 rounded-lg transition-colors"
                     >
                       Complete Ticket
