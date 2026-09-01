@@ -81,18 +81,28 @@ export default function KitchenDisplayPage({
     };
   }, [vendorId, isAuthenticated]);
 
+  // Robust status update handler with optimistic UI updates & error handling
   const updateOrderStatus = async (order: Order, newStatus: Order['status']) => {
+    // 1. Optimistically update UI state immediately for instant button feedback
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, status: newStatus } : o))
+    );
+
+    // 2. Send state change to Supabase database
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
       .eq('id', order.id);
 
     if (error) {
-      console.error('Failed to update status:', error.message);
+      console.error('Supabase update failed:', error.message);
+      alert(`Failed to update order status: ${error.message}`);
+      // Revert UI to database state if update fails
+      fetchOrders();
       return;
     }
 
-    // Trigger SMS API when marked Ready
+    // 3. Trigger SMS API when marked Ready
     if (newStatus === 'ready' && order.customer_phone) {
       try {
         await fetch('/api/send-sms', {
