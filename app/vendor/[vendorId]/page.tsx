@@ -89,7 +89,6 @@ export default function VendorMenuPage() {
     setSubmitting(true);
 
     try {
-      // 1. Fetch auth user or use null
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id || null;
 
@@ -97,34 +96,31 @@ export default function VendorMenuPage() {
       const displayOrderId = `CC-${orderNum}`;
       const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
 
-      // 2. Insert into orders table without forcing custom text string into id
-      const { data: insertedOrder, error: orderError } = await supabase
+      // Insert order into Supabase
+      const { error: orderError } = await supabase
         .from('orders')
         .insert([
           {
+            id: displayOrderId,
             vendor_id: vendorId,
             item_name: summaryItemNames,
             status: 'pending',
-            ...(userId ? { user_id: userId } : {}),
+            user_id: userId,
           },
-        ])
-        .select()
-        .single();
+        ]);
 
       if (orderError) throw orderError;
 
-      const realOrderId = insertedOrder?.id;
-
-      // 3. Insert detailed items into order_items table using the generated order ID
+      // Insert line items
       const orderItems = cart.map((c) => ({
-        order_id: realOrderId,
+        order_id: displayOrderId,
         item_id: c.item.id,
         quantity: c.quantity,
       }));
 
       await supabase.from('order_items').insert(orderItems);
 
-      // 4. Save slip data locally using the display ID
+      // Save local slip data
       const slipData = {
         orderId: displayOrderId,
         vendorName: vendor?.name || 'CampusCrunch',
