@@ -89,6 +89,7 @@ export default function VendorMenuPage() {
     setSubmitting(true);
 
     try {
+      // 1. Get authenticated user or pass null
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id || null;
 
@@ -96,7 +97,7 @@ export default function VendorMenuPage() {
       const displayOrderId = `CC-${orderNum}`;
       const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
 
-      // Insert order into Supabase
+      // 2. Insert into orders table
       const { error: orderError } = await supabase
         .from('orders')
         .insert([
@@ -109,18 +110,19 @@ export default function VendorMenuPage() {
           },
         ]);
 
-      if (orderError) throw orderError;
+      if (orderError) throw new Error(`Orders insert failed: ${orderError.message}`);
 
-      // Insert line items
+      // 3. Insert items into order_items table
       const orderItems = cart.map((c) => ({
         order_id: displayOrderId,
         item_id: c.item.id,
         quantity: c.quantity,
       }));
 
-      await supabase.from('order_items').insert(orderItems);
+      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+      if (itemsError) console.warn('Order items insert warning:', itemsError.message);
 
-      // Save local slip data
+      // 4. Save local slip & redirect
       const slipData = {
         orderId: displayOrderId,
         vendorName: vendor?.name || 'CampusCrunch',
@@ -138,10 +140,12 @@ export default function VendorMenuPage() {
       localStorage.setItem(`order_${displayOrderId}`, JSON.stringify(slipData));
       router.push(`/orders/${displayOrderId}`);
     } catch (err: any) {
-      alert(`Checkout failed: ${err.message || 'Please try again.'}`);
+      console.error('Checkout error:', err);
+      alert(`Checkout Error: ${err.message || 'Failed to process order'}`);
+    } finally {
       setSubmitting(false);
     }
-  };};
+  };
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
