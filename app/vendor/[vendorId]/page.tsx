@@ -29,7 +29,6 @@ export default function VendorMenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<{ item: MenuItem; quantity: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -84,39 +83,30 @@ export default function VendorMenuPage() {
     0
   );
 
-  const handleCheckout = async () => {
-    if (cart.length === 0 || submitting) return;
-    setSubmitting(true);
+  const handlePayAtCounter = () => {
+    if (cart.length === 0) return;
 
-    try {
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert([
-          {
-            vendor_id: vendorId,
-            total_price: totalPrice,
-            status: 'pending',
-          },
-        ])
-        .select()
-        .single();
+    // Generate Order Slip Data
+    const orderNum = Math.floor(100000 + Math.random() * 900000);
+    const slipData = {
+      orderId: `CC-${orderNum}`,
+      vendorName: vendor?.name || 'CampusCrunch',
+      vendorId: vendorId,
+      items: cart.map(c => ({
+        name: c.item.name,
+        qty: c.quantity,
+        price: c.item.price
+      })),
+      total: totalPrice,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toLocaleDateString()
+    };
 
-      if (orderError) throw orderError;
+    // Store order in local storage for instant receipt retrieval
+    localStorage.setItem(`order_${slipData.orderId}`, JSON.stringify(slipData));
 
-      const orderItemsToInsert = cart.map((c) => ({
-        order_id: orderData.id,
-        item_id: c.item.id,
-        quantity: c.quantity,
-        price: c.item.price,
-      }));
-
-      await supabase.from('order_items').insert(orderItemsToInsert);
-
-      router.push(`/orders/${orderData.id}`);
-    } catch (err: any) {
-      alert(`Failed to submit order: ${err.message || 'Please try again.'}`);
-      setSubmitting(false);
-    }
+    // Redirect to digital receipt page
+    router.push(`/orders/${slipData.orderId}`);
   };
 
   return (
@@ -186,21 +176,20 @@ export default function VendorMenuPage() {
           )}
         </div>
 
-        {/* Cart Drawer */}
+        {/* Cart Drawer with Pay at Counter */}
         {cart.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-neutral-900 border border-orange-500/50 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs text-neutral-400 font-medium">Your Order Total</p>
+              <p className="text-xs text-neutral-400 font-medium">Total Due at Counter</p>
               <p className="text-lg font-black text-white font-mono">
                 R{totalPrice.toFixed(2)}
               </p>
             </div>
             <button
-              onClick={handleCheckout}
-              disabled={submitting}
-              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
+              onClick={handlePayAtCounter}
+              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20"
             >
-              {submitting ? 'Placing Order...' : `Checkout (${cart.reduce((s, c) => s + c.quantity, 0)})`}
+              Pay at Counter ({cart.reduce((s, c) => s + c.quantity, 0)})
             </button>
           </div>
         )}
