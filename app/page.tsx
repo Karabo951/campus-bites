@@ -85,7 +85,7 @@ export default function Home() {
 
                 <div className="grid grid-cols-3 gap-2 pt-2">
                   <Link
-                    href={`/menu?vendor=${v.id}`}
+                    href={`/vendor/${v.id}`}
                     className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase text-center tracking-wider transition-colors shadow-md shadow-orange-500/10"
                   >
                     🛒 Order
