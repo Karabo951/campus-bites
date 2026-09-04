@@ -1,143 +1,102 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 
-interface Vendor {
-  id: string;
-  name: string;
-  is_open: boolean;
-}
-
-export default function HomePage() {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchVendors() {
-      try {
-        const { data, error } = await supabase.from('vendors').select('*');
-        if (error) console.error('Error fetching vendors:', error.message);
-        else if (data) setVendors(data);
-      } catch (err) {
-        console.error('Unexpected error:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchVendors();
-  }, []);
+export default function Home() {
+  const vendors = [
+    {
+      id: 'v1',
+      name: 'CampusCrunch Grill',
+      desc: 'Burgers, Chips, and Wraps',
+      isOpen: true,
+    },
+    {
+      id: 'v2',
+      name: 'Crunch Cafe',
+      desc: 'Coffee, Smoothies, and Bakery items',
+      isOpen: true,
+    },
+  ];
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto space-y-8">
+    <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
+      <div className="max-w-5xl mx-auto space-y-10">
         
-        {/* Header */}
-        <div className="flex justify-between items-center border-b pb-6 border-gray-200">
-          <div>
-            <span className="text-xs font-extrabold tracking-widest text-emerald-600 uppercase">
-              Official Campus App
-            </span>
-            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-              Campus Bites
-            </h1>
-            <p className="text-gray-600 text-sm mt-1">
-              Order food, access the kitchen display, or manage vendor menus.
-            </p>
+        {/* Navigation & Header */}
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-6">
+          <div className="flex items-center gap-3.5">
+            {/* Custom Diagonal Cut "C" Logo */}
+            <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center p-2 shadow-lg shadow-orange-500/20">
+              <svg viewBox="0 0 100 100" className="w-full h-full fill-neutral-950">
+                <path d="M 75 25 A 35 35 0 1 0 75 75 L 60 60 A 15 15 0 1 1 60 40 Z" />
+                <line x1="10" y1="90" x2="90" y2="10" stroke="#0a0a0a" strokeWidth="8" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">
+                Official Campus App
+              </span>
+              <h1 className="text-4xl font-black tracking-tight text-white">
+                Campus<span className="text-orange-500">Crunch</span>
+              </h1>
+            </div>
           </div>
 
           <Link
             href="/orders"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-lg shadow-sm transition-colors"
+            className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-orange-400 font-bold px-5 py-3 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2"
           >
-            📋 Track Orders
+            🧾 Track Orders
           </Link>
-        </div>
+        </header>
 
-        {/* Vendors List */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
-          <h2 className="text-xs font-bold tracking-wider text-gray-400 uppercase">
+        {/* Vendors Grid Section */}
+        <section className="space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">
             Campus Vendors & Admin Portals
           </h2>
 
-          {loading ? (
-            <p className="text-gray-500 text-sm">Loading campus vendors...</p>
-          ) : vendors.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {vendors.map((vendor) => {
-                const targetId = vendor.id || 'v1';
-                return (
-                  <div
-                    key={targetId}
-                    className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between space-y-4 hover:border-emerald-500 transition-colors"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-gray-900">{vendor.name}</h3>
-                        <span
-                          className={`inline-block w-2.5 h-2.5 rounded-full ${
-                            vendor.is_open ? 'bg-emerald-500' : 'bg-red-400'
-                          }`}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {vendor.is_open ? 'Open for orders' : 'Closed'}
-                      </p>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <Link
-                        href={`/vendor/${targetId}`}
-                        className="text-center bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-2 rounded-lg transition-colors"
-                      >
-                        🛒 Order
-                      </Link>
-                      <Link
-                        href={`/kitchen/${targetId}`}
-                        className="text-center bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold py-2 rounded-lg transition-colors"
-                      >
-                        👨‍🍳 Kitchen
-                      </Link>
-                      <Link
-                        href={`/admin/${targetId}`}
-                        className="text-center bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold py-2 rounded-lg transition-colors border border-gray-300"
-                      >
-                        ⚙️ Admin
-                      </Link>
-                    </div>
+          <div className="grid sm:grid-cols-2 gap-6">
+            {vendors.map((v) => (
+              <div
+                key={v.id}
+                className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-5 shadow-xl hover:border-orange-500/40 transition-colors"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{v.name}</h3>
+                    <p className="text-xs text-neutral-400 mt-1">{v.desc}</p>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="space-y-4 border p-4 rounded-lg bg-gray-50">
-              <p className="text-gray-500 text-sm">No vendors listed in database yet.</p>
-              <div className="flex gap-2">
-                <Link
-                  href="/vendor/v1"
-                  className="bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-lg"
-                >
-                  Customer View
-                </Link>
-                <Link
-                  href="/kitchen/v1"
-                  className="bg-slate-800 text-white text-xs font-bold py-2 px-3 rounded-lg"
-                >
-                  Kitchen View
-                </Link>
-                <Link
-                  href="/admin/v1"
-                  className="bg-gray-200 text-gray-800 text-xs font-bold py-2 px-3 rounded-lg"
-                >
-                  Admin View
-                </Link>
+                  <span className="flex h-3 w-3 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  <Link
+                    href={`/menu?vendor=${v.id}`}
+                    className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase text-center tracking-wider transition-colors shadow-md shadow-orange-500/10"
+                  >
+                    🛒 Order
+                  </Link>
+
+                  <Link
+                    href={`/kitchen/${v.id}`}
+                    className="bg-neutral-950 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 font-bold py-2.5 rounded-xl text-xs uppercase text-center tracking-wider transition-colors"
+                  >
+                    👨‍🍳 Kitchen
+                  </Link>
+
+                  <Link
+                    href={`/admin/vendor-menu`}
+                    className="bg-neutral-950 hover:bg-neutral-800 text-neutral-400 border border-neutral-800 font-bold py-2.5 rounded-xl text-xs uppercase text-center tracking-wider transition-colors"
+                  >
+                    ⚙️ Admin
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        </section>
 
       </div>
     </main>
