@@ -29,6 +29,7 @@ export default function VendorMenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<{ item: MenuItem; quantity: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -83,30 +84,55 @@ export default function VendorMenuPage() {
     0
   );
 
-  const handlePayAtCounter = () => {
-    if (cart.length === 0) return;
+  const handlePayAtCounter = async () => {
+    if (cart.length === 0 || submitting) return;
+    setSubmitting(true);
 
-    // Generate Order Slip Data
     const orderNum = Math.floor(100000 + Math.random() * 900000);
+    const orderId = `CC-${orderNum}`;
+
     const slipData = {
-      orderId: `CC-${orderNum}`,
+      orderId,
       vendorName: vendor?.name || 'CampusCrunch',
-      vendorId: vendorId,
-      items: cart.map(c => ({
+      vendorId,
+      items: cart.map((c) => ({
         name: c.item.name,
         qty: c.quantity,
-        price: c.item.price
+        price: c.item.price,
       })),
       total: totalPrice,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString()
+      date: new Date().toLocaleDateString(),
     };
 
-    // Store order in local storage for instant receipt retrieval
-    localStorage.setItem(`order_${slipData.orderId}`, JSON.stringify(slipData));
+    try {
+      // 1. Insert order into Supabase
+      await supabase.from('orders').insert([
+        {
+          id: orderId,
+          vendor_id: vendorId,
+          status: 'pending',
+          payment_method: 'counter',
+        },
+      ]);
 
-    // Redirect to digital receipt page
-    router.push(`/orders/${slipData.orderId}`);
+      // 2. Insert item details into Supabase
+      const orderItems = cart.map((c) => ({
+        order_id: orderId,
+        item_id: c.item.id,
+        quantity: c.quantity,
+      }));
+
+      await supabase.from('order_items').insert(orderItems);
+    } catch (e) {
+      console.warn('Supabase backup failed, proceeding with local slip:', e);
+    }
+
+    // 3. Save to localStorage for instant slip rendering
+    localStorage.setItem(`order_${orderId}`, JSON.stringify(slipData));
+
+    // 4. Redirect to screenshot slip page
+    router.push(`/orders/${orderId}`);
   };
 
   return (
@@ -176,7 +202,7 @@ export default function VendorMenuPage() {
           )}
         </div>
 
-        {/* Cart Drawer with Pay at Counter */}
+        {/* Cart Drawer */}
         {cart.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-neutral-900 border border-orange-500/50 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4">
             <div>
@@ -187,9 +213,10 @@ export default function VendorMenuPage() {
             </div>
             <button
               onClick={handlePayAtCounter}
-              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20"
+              disabled={submitting}
+              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50"
             >
-              Pay at Counter ({cart.reduce((s, c) => s + c.quantity, 0)})
+              {submitting ? 'Generating Slip...' : `Pay at Counter (${cart.reduce((s, c) => s + c.quantity, 0)})`}
             </button>
           </div>
         )}
