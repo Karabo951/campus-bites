@@ -23,7 +23,7 @@ interface Vendor {
 export default function VendorMenuPage() {
   const params = useParams();
   const router = useRouter();
-  const vendorId = (params.vendorId as string) || 'v1';
+  const vendorId = (params?.vendorId as string) || 'v1';
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -84,12 +84,11 @@ export default function VendorMenuPage() {
     0
   );
 
-  const handlePayAtCounter = async () => {const handlePayAtCounter = async () => {
+  const handlePayAtCounter = async () => {
     if (cart.length === 0 || submitting) return;
     setSubmitting(true);
 
     try {
-      // 1. Get authenticated user or pass null
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id || null;
 
@@ -97,7 +96,6 @@ export default function VendorMenuPage() {
       const displayOrderId = `CC-${orderNum}`;
       const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
 
-      // 2. Insert into orders table
       const { error: orderError } = await supabase
         .from('orders')
         .insert([
@@ -112,7 +110,6 @@ export default function VendorMenuPage() {
 
       if (orderError) throw new Error(`Orders insert failed: ${orderError.message}`);
 
-      // 3. Insert items into order_items table
       const orderItems = cart.map((c) => ({
         order_id: displayOrderId,
         item_id: c.item.id,
@@ -122,7 +119,6 @@ export default function VendorMenuPage() {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) console.warn('Order items insert warning:', itemsError.message);
 
-      // 4. Save local slip & redirect
       const slipData = {
         orderId: displayOrderId,
         vendorName: vendor?.name || 'CampusCrunch',
@@ -139,9 +135,10 @@ export default function VendorMenuPage() {
 
       localStorage.setItem(`order_${displayOrderId}`, JSON.stringify(slipData));
       router.push(`/orders/${displayOrderId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to process order';
       console.error('Checkout error:', err);
-      alert(`Checkout Error: ${err.message || 'Failed to process order'}`);
+      alert(`Checkout Error: ${message}`);
     } finally {
       setSubmitting(false);
     }
@@ -150,7 +147,6 @@ export default function VendorMenuPage() {
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center p-1.5 shadow-lg shadow-orange-500/20">
@@ -171,11 +167,10 @@ export default function VendorMenuPage() {
             href="/"
             className="bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-800 transition-colors"
           >
-            ← Back Home
+            &larr; Back Home
           </Link>
         </div>
 
-        {/* Menu Items */}
         <div className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">
             Available Dishes
@@ -214,7 +209,6 @@ export default function VendorMenuPage() {
           )}
         </div>
 
-        {/* Cart Drawer */}
         {cart.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-neutral-900 border border-orange-500/50 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4">
             <div>
@@ -228,7 +222,7 @@ export default function VendorMenuPage() {
               disabled={submitting}
               className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50"
             >
-              {submitting ? 'Generating Slip...' : `Pay at Counter (${cart.reduce((s, c) => s + c.quantity, 0)})`}
+              {submitting ? 'Sending to Kitchen...' : `Pay at Counter (${cart.reduce((s, c) => s + c.quantity, 0)})`}
             </button>
           </div>
         )}
