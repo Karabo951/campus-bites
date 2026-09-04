@@ -88,51 +88,61 @@ export default function VendorMenuPage() {
     if (cart.length === 0 || submitting) return;
     setSubmitting(true);
 
-    const orderNum = Math.floor(100000 + Math.random() * 900000);
-    const orderId = `CC-${orderNum}`;
-
-    const slipData = {
-      orderId,
-      vendorName: vendor?.name || 'CampusCrunch',
-      vendorId,
-      items: cart.map((c) => ({
-        name: c.item.name,
-        qty: c.quantity,
-        price: c.item.price,
-      })),
-      total: totalPrice,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString(),
-    };
-
     try {
-      // 1. Insert order into Supabase
-      await supabase.from('orders').insert([
-        {
-          id: orderId,
-          vendor_id: vendorId,
-          status: 'pending',
-          payment_method: 'counter',
-        },
-      ]);
+      // 1. Fetch auth user or use null (or valid UUID) for guest checkout
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id || null;
 
-      // 2. Insert item details into Supabase
+      const orderNum = Math.floor(100000 + Math.random() * 900000);
+      const displayOrderId = `CC-${orderNum}`;
+
+      // 2. Insert into orders table
+      const { data: insertedOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert([
+          {
+            vendor_id: vendorId,
+            ...(userId ? { user_id: userId } : {}),
+            status: 'pending',
+          },
+        ])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      const realOrderId = insertedOrder?.id || displayOrderId;
+
+      // 3. Insert items
       const orderItems = cart.map((c) => ({
-        order_id: orderId,
+        order_id: realOrderId,
         item_id: c.item.id,
         quantity: c.quantity,
       }));
 
       await supabase.from('order_items').insert(orderItems);
-    } catch (e) {
-      console.warn('Supabase backup failed, proceeding with local slip:', e);
+
+      // 4. Save slip data locally
+      const slipData = {
+        orderId: displayOrderId,
+        vendorName: vendor?.name || 'CampusCrunch',
+        vendorId,
+        items: cart.map((c) => ({
+          name: c.item.name,
+          qty: c.quantity,
+          price: c.item.price,
+        })),
+        total: totalPrice,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toLocaleDateString(),
+      };
+
+      localStorage.setItem(`order_${displayOrderId}`, JSON.stringify(slipData));
+      router.push(`/orders/${displayOrderId}`);
+    } catch (err: any) {
+      alert(`Checkout failed: ${err.message || 'Please try again.'}`);
+      setSubmitting(false);
     }
-
-    // 3. Save to localStorage for instant slip rendering
-    localStorage.setItem(`order_${orderId}`, JSON.stringify(slipData));
-
-    // 4. Redirect to screenshot slip page
-    router.push(`/orders/${orderId}`);
   };
 
   return (
