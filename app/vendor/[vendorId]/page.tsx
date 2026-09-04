@@ -84,7 +84,7 @@ export default function VendorMenuPage() {
     0
   );
 
-  const handlePayAtCounter = async () => {
+  const handlePayAtCounter = async () => {const handlePayAtCounter = async () => {
     if (cart.length === 0 || submitting) return;
     setSubmitting(true);
 
@@ -95,16 +95,13 @@ export default function VendorMenuPage() {
 
       const orderNum = Math.floor(100000 + Math.random() * 900000);
       const displayOrderId = `CC-${orderNum}`;
-
-      // Create a comma-separated summary of ordered items
       const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
 
-      // 2. Insert into orders table with item_name included
+      // 2. Insert into orders table without forcing custom text string into id
       const { data: insertedOrder, error: orderError } = await supabase
         .from('orders')
         .insert([
           {
-            id: displayOrderId,
             vendor_id: vendorId,
             item_name: summaryItemNames,
             status: 'pending',
@@ -116,9 +113,9 @@ export default function VendorMenuPage() {
 
       if (orderError) throw orderError;
 
-      const realOrderId = insertedOrder?.id || displayOrderId;
+      const realOrderId = insertedOrder?.id;
 
-      // 3. Insert detailed items into order_items table
+      // 3. Insert detailed items into order_items table using the generated order ID
       const orderItems = cart.map((c) => ({
         order_id: realOrderId,
         item_id: c.item.id,
@@ -127,7 +124,7 @@ export default function VendorMenuPage() {
 
       await supabase.from('order_items').insert(orderItems);
 
-      // 4. Save slip data locally
+      // 4. Save slip data locally using the display ID
       const slipData = {
         orderId: displayOrderId,
         vendorName: vendor?.name || 'CampusCrunch',
@@ -148,7 +145,7 @@ export default function VendorMenuPage() {
       alert(`Checkout failed: ${err.message || 'Please try again.'}`);
       setSubmitting(false);
     }
-  };
+  };};
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
