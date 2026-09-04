@@ -89,21 +89,26 @@ export default function VendorMenuPage() {
     setSubmitting(true);
 
     try {
-      // 1. Fetch auth user or use null (or valid UUID) for guest checkout
+      // 1. Fetch auth user or use null
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id || null;
 
       const orderNum = Math.floor(100000 + Math.random() * 900000);
       const displayOrderId = `CC-${orderNum}`;
 
-      // 2. Insert into orders table
+      // Create a comma-separated summary of ordered items
+      const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
+
+      // 2. Insert into orders table with item_name included
       const { data: insertedOrder, error: orderError } = await supabase
         .from('orders')
         .insert([
           {
+            id: displayOrderId,
             vendor_id: vendorId,
-            ...(userId ? { user_id: userId } : {}),
+            item_name: summaryItemNames,
             status: 'pending',
+            ...(userId ? { user_id: userId } : {}),
           },
         ])
         .select()
@@ -113,7 +118,7 @@ export default function VendorMenuPage() {
 
       const realOrderId = insertedOrder?.id || displayOrderId;
 
-      // 3. Insert items
+      // 3. Insert detailed items into order_items table
       const orderItems = cart.map((c) => ({
         order_id: realOrderId,
         item_id: c.item.id,
