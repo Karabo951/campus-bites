@@ -1,20 +1,31 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+
+interface Vendor {
+  id: string;
+  name: string;
+  description: string;
+  is_open?: boolean;
+}
 
 export default function Home() {
-  const vendors = [
-    {
-      id: 'v1',
-      name: 'CampusCrunch Grill',
-      desc: 'Burgers, Chips, and Wraps',
-      isOpen: true,
-    },
-    {
-      id: 'v2',
-      name: 'Crunch Cafe',
-      desc: 'Coffee, Smoothies, and Bakery items',
-      isOpen: true,
-    },
-  ];
+  const [vendors, setVendors] = useState<Vendor[]>([
+    { id: 'v1', name: 'CampusCrunch Grill', description: 'Burgers, Chips, and Wraps', is_open: true },
+    { id: 'v2', name: 'Crunch Cafe', description: 'Coffee, Smoothies, and Bakery items', is_open: true }
+  ]);
+
+  useEffect(() => {
+    async function loadVendors() {
+      const { data } = await supabase.from('vendors').select('*').order('id');
+      if (data && data.length > 0) {
+        setVendors(data);
+      }
+    }
+    loadVendors();
+  }, []);
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
@@ -23,7 +34,6 @@ export default function Home() {
         {/* Navigation & Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-6">
           <div className="flex items-center gap-3.5">
-            {/* Custom Diagonal Cut "C" Logo */}
             <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center p-2 shadow-lg shadow-orange-500/20">
               <svg viewBox="0 0 100 100" className="w-full h-full fill-neutral-950">
                 <path d="M 75 25 A 35 35 0 1 0 75 75 L 60 60 A 15 15 0 1 1 60 40 Z" />
@@ -40,18 +50,20 @@ export default function Home() {
             </div>
           </div>
 
-          <Link
-            href="/orders"
-            className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-orange-400 font-bold px-5 py-3 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2"
-          >
-            🧾 Track Orders
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/vendor-menu"
+              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-orange-400 font-bold px-4 py-3 rounded-xl text-xs uppercase tracking-wider transition-all"
+            >
+              ⚙️ Manage Vendors
+            </Link>
+          </div>
         </header>
 
         {/* Vendors Grid Section */}
         <section className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">
-            Campus Vendors & Admin Portals
+            Campus Vendors & Portals
           </h2>
 
           <div className="grid sm:grid-cols-2 gap-6">
@@ -63,7 +75,7 @@ export default function Home() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-xl font-bold text-white">{v.name}</h3>
-                    <p className="text-xs text-neutral-400 mt-1">{v.desc}</p>
+                    <p className="text-xs text-neutral-400 mt-1">{v.description}</p>
                   </div>
                   <span className="flex h-3 w-3 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>

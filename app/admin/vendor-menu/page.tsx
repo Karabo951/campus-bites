@@ -21,17 +21,20 @@ interface MenuItem {
 }
 
 export default function VendorMenuManager() {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([
+    { id: 'v1', name: 'CampusCrunch Grill', description: 'Burgers, Chips, and Wraps' },
+    { id: 'v2', name: 'Crunch Cafe', description: 'Coffee, Smoothies, and Bakery items' }
+  ]);
   const [selectedVendorId, setSelectedVendorId] = useState('v1');
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // New Vendor Form State
+  // New Vendor Form
   const [newVendorId, setNewVendorId] = useState('');
   const [newVendorName, setNewVendorName] = useState('');
   const [newVendorDesc, setNewVendorDesc] = useState('');
 
-  // Dish Form State
+  // New Dish Form
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -41,21 +44,18 @@ export default function VendorMenuManager() {
     const { data } = await supabase.from('vendors').select('*').order('id');
     if (data && data.length > 0) {
       setVendors(data);
-      if (!data.some((v) => v.id === selectedVendorId)) {
-        setSelectedVendorId(data[0].id);
-      }
     }
   };
 
   const fetchMenuItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('menu_items')
       .select('*')
       .eq('vendor_id', selectedVendorId)
       .order('id', { ascending: true });
 
-    if (!error && data) {
+    if (data) {
       setItems(data);
     }
     setLoading(false);
@@ -73,21 +73,17 @@ export default function VendorMenuManager() {
     e.preventDefault();
     if (!newVendorId || !newVendorName) return;
 
+    const vId = newVendorId.toLowerCase().trim();
     const { error } = await supabase.from('vendors').insert([
-      {
-        id: newVendorId.toLowerCase().trim(),
-        name: newVendorName,
-        description: newVendorDesc,
-        is_open: true,
-      },
+      { id: vId, name: newVendorName, description: newVendorDesc, is_open: true }
     ]);
 
     if (!error) {
-      setSelectedVendorId(newVendorId.toLowerCase().trim());
       setNewVendorId('');
       setNewVendorName('');
       setNewVendorDesc('');
-      fetchVendors();
+      await fetchVendors();
+      setSelectedVendorId(vId);
     } else {
       alert(`Error creating vendor: ${error.message}`);
     }
@@ -119,11 +115,7 @@ export default function VendorMenuManager() {
   };
 
   const toggleAvailability = async (id: number, currentStatus: boolean) => {
-    await supabase
-      .from('menu_items')
-      .update({ is_available: !currentStatus })
-      .eq('id', id);
-
+    await supabase.from('menu_items').update({ is_available: !currentStatus }).eq('id', id);
     fetchMenuItems();
   };
 
@@ -135,7 +127,7 @@ export default function VendorMenuManager() {
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 max-w-5xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-neutral-800 pb-4 gap-4">
+      <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center p-1.5 shadow-lg shadow-orange-500/20">
             <svg viewBox="0 0 100 100" className="w-full h-full fill-neutral-950">
@@ -144,10 +136,10 @@ export default function VendorMenuManager() {
             </svg>
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">
-              Campus<span className="text-orange-500">Crunch</span>
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              Campus<span className="text-orange-500">Crunch</span> Admin
             </h1>
-            <p className="text-xs text-neutral-400">Admin Portal & Menu Management</p>
+            <p className="text-xs text-neutral-400">Add Vendors, Update Menus & Dishes</p>
           </div>
         </div>
 
@@ -159,10 +151,10 @@ export default function VendorMenuManager() {
         </Link>
       </div>
 
-      {/* 1. Add New Vendor Section */}
+      {/* 1. Add Vendor Panel */}
       <form onSubmit={handleAddVendor} className="bg-neutral-900 p-6 rounded-2xl border border-neutral-800 space-y-4">
-        <h2 className="text-base font-bold text-orange-400 uppercase tracking-wider">
-          + Create New Vendor
+        <h2 className="text-sm font-bold text-orange-400 uppercase tracking-wider">
+          + Add New Vendor
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <input
@@ -183,7 +175,7 @@ export default function VendorMenuManager() {
           />
           <input
             type="text"
-            placeholder="Description (e.g. Woodfired Pizza)"
+            placeholder="Description (Optional)"
             value={newVendorDesc}
             onChange={(e) => setNewVendorDesc(e.target.value)}
             className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500"
@@ -191,13 +183,13 @@ export default function VendorMenuManager() {
         </div>
         <button
           type="submit"
-          className="bg-neutral-800 hover:bg-orange-500 hover:text-neutral-950 text-white font-bold py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-colors"
+          className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-md shadow-orange-500/10"
         >
-          Add Vendor
+          Create Vendor
         </button>
       </form>
 
-      {/* Vendor Selector Bar */}
+      {/* Vendor Selector */}
       <div className="flex items-center gap-3 bg-neutral-900 p-4 rounded-2xl border border-neutral-800">
         <label className="text-xs font-bold text-neutral-400">Managing Menu For:</label>
         <select
@@ -213,9 +205,11 @@ export default function VendorMenuManager() {
         </select>
       </div>
 
-      {/* 2. Add New Dish Form */}
+      {/* 2. Add Dish Form */}
       <form onSubmit={handleAddItem} className="bg-neutral-900 p-6 rounded-2xl border border-neutral-800 space-y-4">
-        <h2 className="text-lg font-bold text-white">Add Dish to {selectedVendorId.toUpperCase()}</h2>
+        <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+          + Add New Dish
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <input
             type="text"
@@ -236,7 +230,7 @@ export default function VendorMenuManager() {
           />
           <input
             type="text"
-            placeholder="Category (e.g. Mains, Drinks, Sides)"
+            placeholder="Category (e.g. Mains, Drinks)"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-sm focus:outline-none focus:border-orange-500 text-white"
@@ -254,17 +248,17 @@ export default function VendorMenuManager() {
           type="submit"
           className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20"
         >
-          + Save & Publish Dish
+          Save & Publish Dish
         </button>
       </form>
 
-      {/* 3. Dish List */}
+      {/* 3. Active Dishes */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-white">Active Dishes</h2>
+        <h2 className="text-sm font-bold text-white uppercase tracking-wider">Active Dishes</h2>
         {loading ? (
-          <p className="text-neutral-500 text-sm">Loading dishes...</p>
+          <p className="text-neutral-500 text-xs">Loading dishes...</p>
         ) : items.length === 0 ? (
-          <p className="text-neutral-500 text-sm">No dishes added for this vendor yet.</p>
+          <p className="text-neutral-500 text-xs">No dishes added for this vendor yet.</p>
         ) : (
           <div className="grid gap-3">
             {items.map((item) => (
@@ -274,12 +268,12 @@ export default function VendorMenuManager() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-white">{item.name}</span>
+                    <span className="font-bold text-white text-sm">{item.name}</span>
                     <span className="text-[10px] bg-neutral-800 px-2 py-0.5 rounded text-neutral-400 font-mono">
                       {item.category}
                     </span>
                   </div>
-                  <p className="text-xs text-neutral-400">{item.description}</p>
+                  <p className="text-xs text-neutral-400 mt-1">{item.description}</p>
                   <p className="text-sm font-bold text-orange-400 font-mono mt-1">
                     R{item.price.toFixed(2)}
                   </p>
