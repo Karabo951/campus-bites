@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
@@ -22,18 +22,19 @@ interface Vendor {
 
 export default function VendorMenuPage() {
   const params = useParams();
+  const router = useRouter();
   const vendorId = (params.vendorId as string) || 'v1';
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<{ item: MenuItem; quantity: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
 
-      // Fetch Vendor Info
       const { data: vendorData } = await supabase
         .from('vendors')
         .select('*')
@@ -50,7 +51,6 @@ export default function VendorMenuPage() {
         });
       }
 
-      // Fetch Menu Items
       const { data: menuData } = await supabase
         .from('menu_items')
         .select('*')
@@ -84,11 +84,45 @@ export default function VendorMenuPage() {
     0
   );
 
+  const handleCheckout = async () => {
+    if (cart.length === 0 || submitting) return;
+    setSubmitting(true);
+
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert([
+          {
+            vendor_id: vendorId,
+            total_price: totalPrice,
+            status: 'pending',
+          },
+        ])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      const orderItemsToInsert = cart.map((c) => ({
+        order_id: orderData.id,
+        item_id: c.item.id,
+        quantity: c.quantity,
+        price: c.item.price,
+      }));
+
+      await supabase.from('order_items').insert(orderItemsToInsert);
+
+      router.push(`/orders/${orderData.id}`);
+    } catch (err: any) {
+      alert(`Failed to submit order: ${err.message || 'Please try again.'}`);
+      setSubmitting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
       <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* Navigation Header */}
+        {/* Header */}
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center p-1.5 shadow-lg shadow-orange-500/20">
@@ -113,7 +147,7 @@ export default function VendorMenuPage() {
           </Link>
         </div>
 
-        {/* Menu Items Grid */}
+        {/* Menu Items */}
         <div className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">
             Available Dishes
@@ -122,7 +156,7 @@ export default function VendorMenuPage() {
           {loading ? (
             <p className="text-neutral-500 text-xs">Loading menu items...</p>
           ) : menuItems.length === 0 ? (
-            <p className="text-neutral-500 text-xs">No items currently available for this vendor.</p>
+            <p className="text-neutral-500 text-xs">No items available.</p>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
               {menuItems.map((item) => (
@@ -152,24 +186,24 @@ export default function VendorMenuPage() {
           )}
         </div>
 
-        {/* Shopping Cart Drawer/Bar */}
+        {/* Cart Drawer */}
         {cart.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-neutral-900 border border-orange-500/50 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs text-neutral-400 font-medium">Your Order</p>
+              <p className="text-xs text-neutral-400 font-medium">Your Order Total</p>
               <p className="text-lg font-black text-white font-mono">
                 R{totalPrice.toFixed(2)}
               </p>
             </div>
             <button
-              onClick={() => alert('Order placement flow triggers here!')}
-              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors"
+              onClick={handleCheckout}
+              disabled={submitting}
+              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
             >
-              Checkout ({cart.reduce((sum, c) => sum + c.quantity, 0)})
+              {submitting ? 'Placing Order...' : `Checkout (${cart.reduce((s, c) => s + c.quantity, 0)})`}
             </button>
           </div>
         )}
-
       </div>
     </main>
   );
