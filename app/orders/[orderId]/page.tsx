@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
+
 interface SlipData {
   orderId: string;
   vendorName: string;
@@ -87,8 +88,16 @@ export default function OrderSlipPage() {
           </span>
         </div>
 
-        {/* Actions */}
+{/* Actions */}
         <div className="space-y-2 pt-2">
+          {/* STEP 2: Live Tracking Link */}
+          <Link
+            href={`/orders/${slip.orderId}/track`}
+            className="block text-center bg-emerald-500 hover:bg-emerald-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase transition-colors"
+          >
+            Track Order Status Live ➔
+          </Link>
+
           <button
             onClick={() => window.print()}
             className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase"
