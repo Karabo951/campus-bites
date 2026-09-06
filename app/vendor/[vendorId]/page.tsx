@@ -31,6 +31,11 @@ export default function VendorMenuPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Customer Slip Details State
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -41,15 +46,7 @@ export default function VendorMenuPage() {
         .eq('id', vendorId)
         .single();
 
-      if (vendorData) {
-        setVendor(vendorData);
-      } else {
-        setVendor({
-          id: vendorId,
-          name: vendorId === 'v1' ? 'CampusCrunch Grill' : 'Crunch Cafe',
-          description: 'Delicious food prepared fresh on campus',
-        });
-      }
+      if (vendorData) setVendor(vendorData);
 
       const { data: menuData } = await supabase
         .from('menu_items')
@@ -57,10 +54,7 @@ export default function VendorMenuPage() {
         .eq('vendor_id', vendorId)
         .eq('is_available', true);
 
-      if (menuData) {
-        setMenuItems(menuData);
-      }
-
+      if (menuData) setMenuItems(menuData);
       setLoading(false);
     }
 
@@ -84,8 +78,11 @@ export default function VendorMenuPage() {
     0
   );
 
-  const handlePayAtCounter = async () => {
+  const handleConfirmOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName.trim()) return alert('Please enter your name for the receipt');
     if (cart.length === 0 || submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -96,33 +93,37 @@ export default function VendorMenuPage() {
       const displayOrderId = `CC-${orderNum}`;
       const summaryItemNames = cart.map((c) => `${c.item.name} (x${c.quantity})`).join(', ');
 
-      const { error: orderError } = await supabase
-        .from('orders')
-        .insert([
-          {
-            id: displayOrderId,
-            vendor_id: vendorId,
-            item_name: summaryItemNames,
-            status: 'pending',
-            user_id: userId,
-          },
-        ]);
+      // Insert Order with Customer Details
+      const { error: orderError } = await supabase.from('orders').insert([
+        {
+          id: displayOrderId,
+          vendor_id: vendorId,
+          item_name: summaryItemNames,
+          status: 'pending',
+          user_id: userId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+        },
+      ]);
 
       if (orderError) throw new Error(`Orders insert failed: ${orderError.message}`);
 
+      // Insert Order Line Items
       const orderItems = cart.map((c) => ({
         order_id: displayOrderId,
         item_id: c.item.id,
         quantity: c.quantity,
       }));
 
-      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-      if (itemsError) console.warn('Order items insert warning:', itemsError.message);
+      await supabase.from('order_items').insert(orderItems);
 
+      // Save Slip Data to Local Storage (Including Customer Details)
       const slipData = {
         orderId: displayOrderId,
         vendorName: vendor?.name || 'CampusCrunch',
         vendorId,
+        customerName,
+        customerPhone: customerPhone || 'N/A',
         items: cart.map((c) => ({
           name: c.item.name,
           qty: c.quantity,
@@ -137,7 +138,6 @@ export default function VendorMenuPage() {
       router.push(`/orders/${displayOrderId}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to process order';
-      console.error('Checkout error:', err);
       alert(`Checkout Error: ${message}`);
     } finally {
       setSubmitting(false);
@@ -148,82 +148,119 @@ export default function VendorMenuPage() {
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center p-1.5 shadow-lg shadow-orange-500/20">
-              <svg viewBox="0 0 100 100" className="w-full h-full fill-neutral-950">
-                <path d="M 75 25 A 35 35 0 1 0 75 75 L 60 60 A 15 15 0 1 1 60 40 Z" />
-                <line x1="10" y1="90" x2="90" y2="10" stroke="#0a0a0a" strokeWidth="8" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">
-                {vendor?.name || 'CampusCrunch'}
-              </h1>
-              <p className="text-xs text-neutral-400">{vendor?.description}</p>
-            </div>
-          </div>
-
+          <h1 className="text-2xl font-black text-white tracking-tight">
+            {vendor?.name || 'CampusCrunch'}
+          </h1>
           <Link
             href="/"
-            className="bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-800 transition-colors"
+            className="bg-neutral-900 text-neutral-300 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-800"
           >
             &larr; Back Home
           </Link>
         </div>
 
-        <div className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">
-            Available Dishes
-          </h2>
-
-          {loading ? (
-            <p className="text-neutral-500 text-xs">Loading menu items...</p>
-          ) : menuItems.length === 0 ? (
-            <p className="text-neutral-500 text-xs">No items available.</p>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-4">
-              {menuItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex flex-col justify-between space-y-4 shadow-xl hover:border-orange-500/30 transition-colors"
-                >
-                  <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <h3 className="font-bold text-white text-base">{item.name}</h3>
-                      <span className="font-mono text-sm font-bold text-orange-400">
-                        R{item.price.toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-400 mt-2">{item.description}</p>
-                  </div>
-
-                  <button
-                    onClick={() => addToCart(item)}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-md shadow-orange-500/10"
-                  >
-                    + Add To Cart
-                  </button>
+        {/* Menu Grid */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          {menuItems.map((item) => (
+            <div
+              key={item.id}
+              className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex flex-col justify-between space-y-4"
+            >
+              <div>
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-white">{item.name}</h3>
+                  <span className="font-mono text-sm font-bold text-orange-400">
+                    R{item.price.toFixed(2)}
+                  </span>
                 </div>
-              ))}
+                <p className="text-xs text-neutral-400 mt-2">{item.description}</p>
+              </div>
+
+              <button
+                onClick={() => addToCart(item)}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase"
+              >
+                + Add To Cart
+              </button>
             </div>
-          )}
+          ))}
         </div>
 
+        {/* Bottom Cart Bar */}
         {cart.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-neutral-900 border border-orange-500/50 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs text-neutral-400 font-medium">Total Due at Counter</p>
+              <p className="text-xs text-neutral-400 font-medium">Total Due</p>
               <p className="text-lg font-black text-white font-mono">
                 R{totalPrice.toFixed(2)}
               </p>
             </div>
             <button
-              onClick={handlePayAtCounter}
-              disabled={submitting}
-              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50"
+              onClick={() => setShowCheckoutModal(true)}
+              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase"
             >
-              {submitting ? 'Sending to Kitchen...' : `Pay at Counter (${cart.reduce((s, c) => s + c.quantity, 0)})`}
+              Checkout ({cart.reduce((s, c) => s + c.quantity, 0)})
             </button>
+          </div>
+        )}
+
+        {/* Customer Details Modal */}
+        {showCheckoutModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl max-w-md w-full space-y-6">
+              <div>
+                <h2 className="text-lg font-black uppercase text-white">Receipt Details</h2>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Enter customer details to display on order receipt slip
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmOrder} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-neutral-400 block mb-1">
+                    Customer Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. John Doe"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-400 block mb-1">
+                    Phone or Table No. (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Table 4 or 0821234567"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCheckoutModal(false)}
+                    className="w-1/2 bg-neutral-950 border border-neutral-800 text-neutral-400 font-bold py-3 rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-1/2 bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase disabled:opacity-50"
+                  >
+                    {submitting ? 'Generating Slip...' : 'Confirm Order'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>
