@@ -199,7 +199,7 @@ export default function VendorMenuPage() {
               onClick={() => setShowCheckoutModal(true)}
               className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase"
             >
-              Checkout ({cart.reduce((s, c) => s + c.quantity, 0)})
+             Pay at Counter ({cart.reduce((s, c) => s + c.quantity, 0)})
             </button>
           </div>
         )}
