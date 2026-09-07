@@ -58,6 +58,13 @@ export default function Home() {
               ⚙️ Manage Vendors
             </Link>
           </div>
+
+          <Link
+  href="/orders"
+  className="bg-neutral-900 border border-neutral-800 text-xs font-bold px-4 py-2 rounded-xl text-orange-400 hover:text-orange-300 flex items-center gap-2"
+>
+  📋 My Orders
+</Link>
         </header>
 
         {/* Vendors Grid Section */}
