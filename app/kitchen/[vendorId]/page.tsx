@@ -11,7 +11,7 @@ interface Order {
   created_at: string;
 }
 
-const DEFAULT_KITCHEN_PIN = '1234'; // Default lock PIN
+const DEFAULT_KITCHEN_PIN = '2468'; // Default lock PIN
 
 export default function KitchenDisplayPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

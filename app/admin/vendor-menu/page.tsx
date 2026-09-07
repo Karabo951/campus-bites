@@ -29,7 +29,7 @@ interface Enquiry {
   created_at: string;
 }
 
-const ADMIN_PIN = '9999';
+const ADMIN_PIN = '040301';
 
 export default function AdminVendorPage() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
@@ -170,7 +170,7 @@ export default function AdminVendorPage() {
           <form onSubmit={handleAdminAuth} className="space-y-4">
             <input
               type="password"
-              maxLength={4}
+              maxLength={6}
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
               placeholder="Enter PIN (Default: 9999)"
