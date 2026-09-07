@@ -80,6 +80,13 @@ export default function VendorPage() {
         ) : (
           <p className="text-gray-500 text-sm">No menu items found in Supabase.</p>
         )}
+
+       <Link
+  href="/orders"
+  className="bg-neutral-900 border border-neutral-800 text-xs font-bold px-4 py-2 rounded-xl text-orange-400 hover:text-orange-300 flex items-center gap-2"
+>
+  📋 My Orders
+</Link> 
       </div>
     </main>
   );
