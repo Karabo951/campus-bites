@@ -26,6 +26,7 @@ interface Enquiry {
   email: string;
   subject: string;
   message: string;
+  status: 'pending' | 'in_progress' | 'resolved';
   created_at: string;
 }
 
@@ -72,6 +73,9 @@ export default function AdminVendorPage() {
     if (data && data.length > 0) {
       setVendors(data);
       if (!selectedVendorId) setSelectedVendorId(data[0].id);
+    } else {
+      setVendors([]);
+      setSelectedVendorId('');
     }
   };
 
@@ -93,7 +97,30 @@ export default function AdminVendorPage() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (data) setEnquiries(data);
+    if (data) setEnquiries(data as Enquiry[]);
+  };
+
+  const handleDeleteVendor = async (vendorId: string) => {
+    if (!confirm('Are you sure you want to delete this vendor? This will remove all associated menu items.')) {
+      return;
+    }
+
+    // 1. Delete associated menu items
+    await supabase.from('menu_items').delete().eq('vendor_id', vendorId);
+
+    // 2. Delete vendor record
+    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
+
+    if (error) {
+      alert(`Failed to delete vendor: ${error.message}`);
+    } else {
+      const remainingVendors = vendors.filter((v) => v.id !== vendorId);
+      setVendors(remainingVendors);
+      if (selectedVendorId === vendorId) {
+        setSelectedVendorId(remainingVendors.length > 0 ? remainingVendors[0].id : '');
+        setMenuItems([]);
+      }
+    }
   };
 
   const handleAdminAuth = (e: React.FormEvent) => {
@@ -124,6 +151,7 @@ export default function AdminVendorPage() {
 
   const handleAddDish = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedVendorId) return alert('Please select or create a vendor first');
     if (!newDish.name || !newDish.price) return alert('Provide dish name and price');
 
     const priceNum = parseFloat(newDish.price);
@@ -155,6 +183,35 @@ export default function AdminVendorPage() {
     else fetchMenuItems(selectedVendorId);
   };
 
+  const handleUpdateEnquiryStatus = async (id: number, newStatus: Enquiry['status']) => {
+    setEnquiries((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
+    );
+
+    const { error } = await supabase
+      .from('enquiries')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      alert(`Failed to update status: ${error.message}`);
+      fetchEnquiries();
+    }
+  };
+
+  const handleDeleteEnquiry = async (id: number) => {
+    if (!confirm('Delete this enquiry record?')) return;
+
+    setEnquiries((prev) => prev.filter((item) => item.id !== id));
+
+    const { error } = await supabase.from('enquiries').delete().eq('id', id);
+
+    if (error) {
+      alert(`Failed to delete enquiry: ${error.message}`);
+      fetchEnquiries();
+    }
+  };
+
   if (!isAdminAuthenticated) {
     return (
       <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
@@ -173,10 +230,10 @@ export default function AdminVendorPage() {
               maxLength={6}
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              placeholder="Enter PIN (Default: 9999)"
+              placeholder="Enter PIN"
               className="w-full bg-neutral-950 border border-neutral-800 text-center text-2xl tracking-[0.5em] font-mono py-3 rounded-xl text-white focus:outline-none focus:border-orange-500"
             />
-            {pinError && <p className="text-xs text-red-400 font-bold">Invalid Admin PIN. Try 9999.</p>}
+            {pinError && <p className="text-xs text-red-400 font-bold">Invalid Admin PIN. Try 040301.</p>}
             <button
               type="submit"
               className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl uppercase tracking-wider text-xs transition-colors"
@@ -216,21 +273,7 @@ export default function AdminVendorPage() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex gap-2 border-b border-neutral-800 pb-4 mb-6">
-  {/* Existing Admin Tabs */}
-  <button className="px-4 py-2 text-xs font-bold bg-neutral-800 text-white rounded-xl">
-    Manage Menu
-  </button>
-  
-  {/* NEW: View Enquiries Link */}
-  <Link
-    href="/admin/enquiries"
-    className="px-4 py-2 text-xs font-bold bg-neutral-900 border border-neutral-800 text-amber-400 hover:text-amber-300 rounded-xl transition-colors"
-  >
-    📬 Customer Enquiries
-  </Link>
-</div>
+        {/* Section Tabs */}
         <div className="flex gap-4 border-b border-neutral-800 pb-2">
           <button
             onClick={() => setActiveTab('menu')}
@@ -286,21 +329,32 @@ export default function AdminVendorPage() {
               </form>
             </div>
 
-            {/* Select Active Vendor & Add Dish */}
+            {/* Select Active Vendor & Remove Vendor */}
             <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <span className="text-xs font-bold uppercase text-neutral-400">Managing Menu For:</span>
-                <select
-                  value={selectedVendorId}
-                  onChange={(e) => setSelectedVendorId(e.target.value)}
-                  className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs font-bold text-white"
-                >
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.id})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedVendorId}
+                    onChange={(e) => setSelectedVendorId(e.target.value)}
+                    className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs font-bold text-white"
+                  >
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} ({v.id})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVendorId && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVendor(selectedVendorId)}
+                      className="bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white text-xs font-bold px-3 py-3 rounded-xl transition-colors"
+                    >
+                      🗑 Remove Vendor
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Add New Dish */}
@@ -388,19 +442,66 @@ export default function AdminVendorPage() {
             ) : (
               <div className="space-y-4">
                 {enquiries.map((enquiry) => (
-                  <div key={enquiry.id} className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl space-y-2">
+                  <div key={enquiry.id} className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl space-y-3">
                     <div className="flex justify-between items-start border-b border-neutral-800 pb-2">
                       <div>
                         <h4 className="font-bold text-white text-sm">{enquiry.subject}</h4>
                         <p className="text-xs text-orange-400">From: {enquiry.name} ({enquiry.email})</p>
                       </div>
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        {new Date(enquiry.created_at).toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-neutral-500 font-mono">
+                          {new Date(enquiry.created_at).toLocaleString()}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteEnquiry(enquiry.id)}
+                          className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg font-bold"
+                        >
+                          🗑 Delete
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-neutral-300 bg-neutral-950 p-3 rounded-xl border border-neutral-800">
                       {enquiry.message}
                     </p>
+
+                    {/* Progress Update Controls */}
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60">
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                        Progress Status:
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdateEnquiryStatus(enquiry.id, 'pending')}
+                          className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                            enquiry.status === 'pending' || !enquiry.status
+                              ? 'bg-amber-500 text-neutral-950 font-bold'
+                              : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          🟡 Pending
+                        </button>
+                        <button
+                          onClick={() => handleUpdateEnquiryStatus(enquiry.id, 'in_progress')}
+                          className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                            enquiry.status === 'in_progress'
+                              ? 'bg-blue-500 text-white font-bold'
+                              : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          🔵 In Progress
+                        </button>
+                        <button
+                          onClick={() => handleUpdateEnquiryStatus(enquiry.id, 'resolved')}
+                          className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                            enquiry.status === 'resolved'
+                              ? 'bg-emerald-500 text-neutral-950 font-bold'
+                              : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          🟢 Resolved
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -10,6 +10,7 @@ interface Enquiry {
   email: string;
   subject: string;
   message: string;
+  status: 'pending' | 'in_progress' | 'resolved';
   created_at: string;
 }
 
@@ -23,7 +24,6 @@ export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Check saved authentication on load
   useEffect(() => {
     const savedAuth = localStorage.getItem('admin_enquiries_auth');
     if (savedAuth === 'true') {
@@ -31,7 +31,6 @@ export default function AdminEnquiriesPage() {
     }
   }, []);
 
-  // Fetch enquiries and subscribe to real-time updates
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -52,14 +51,23 @@ export default function AdminEnquiriesPage() {
 
     fetchEnquiries();
 
-    // Realtime listener for new enquiry submissions
     const subscription = supabase
       .channel('realtime_enquiries')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'enquiries' },
+        { event: '*', schema: 'public', table: 'enquiries' },
         (payload) => {
-          setEnquiries((prev) => [payload.new as Enquiry, ...prev]);
+          if (payload.eventType === 'INSERT') {
+            setEnquiries((prev) => [payload.new as Enquiry, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Enquiry;
+            setEnquiries((prev) =>
+              prev.map((item) => (item.id === updated.id ? updated : item))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old.id;
+            setEnquiries((prev) => prev.filter((item) => item.id !== deletedId));
+          }
         }
       )
       .subscribe();
@@ -68,6 +76,35 @@ export default function AdminEnquiriesPage() {
       supabase.removeChannel(subscription);
     };
   }, [isAuthenticated]);
+
+  const handleUpdateStatus = async (id: string, newStatus: Enquiry['status']) => {
+    // Optimistic UI update
+    setEnquiries((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
+    );
+
+    const { error } = await supabase
+      .from('enquiries')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      alert(`Failed to update status: ${error.message}`);
+    }
+  };
+
+  const handleDeleteEnquiry = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this enquiry?')) return;
+
+    // Optimistic UI update
+    setEnquiries((prev) => prev.filter((item) => item.id !== id));
+
+    const { error } = await supabase.from('enquiries').delete().eq('id', id);
+
+    if (error) {
+      alert(`Failed to delete enquiry: ${error.message}`);
+    }
+  };
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +124,6 @@ export default function AdminEnquiriesPage() {
     localStorage.removeItem('admin_enquiries_auth');
   };
 
-  // PIN Gate
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
@@ -100,7 +136,7 @@ export default function AdminEnquiriesPage() {
               Enquiries Portal
             </h1>
             <p className="text-xs text-neutral-400 mt-1">
-              Enter admin PIN to read customer messages
+              Enter admin PIN to view & update enquiries
             </p>
           </div>
 
@@ -137,15 +173,15 @@ export default function AdminEnquiriesPage() {
               Customer Enquiries
             </h1>
             <p className="text-xs text-neutral-400">
-              Manage incoming support tickets and feedback
+              Track progress status and manage customer support requests
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href="/"
+              href="/admin/vendor-menu"
               className="bg-neutral-900 border border-neutral-800 text-xs font-bold px-3 py-2 rounded-xl text-neutral-300 hover:text-white"
             >
-              ← Home
+              ← Admin Portal
             </Link>
             <button
               onClick={handleLock}
@@ -167,22 +203,70 @@ export default function AdminEnquiriesPage() {
             {enquiries.map((item) => (
               <div
                 key={item.id}
-                className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-3 shadow-lg"
+                className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-4 shadow-lg"
               >
-                <div className="flex justify-between items-start border-b border-neutral-800 pb-3">
+                <div className="flex flex-wrap justify-between items-start gap-4 border-b border-neutral-800 pb-3">
                   <div>
                     <h2 className="text-sm font-bold text-white">{item.subject}</h2>
                     <p className="text-xs text-amber-400 font-semibold mt-0.5">
                       From: {item.name} ({item.email})
                     </p>
                   </div>
-                  <span className="text-[10px] text-neutral-500 font-mono">
-                    {new Date(item.created_at).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-neutral-500 font-mono">
+                      {new Date(item.created_at).toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteEnquiry(item.id)}
+                      className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg font-bold"
+                    >
+                      🗑 Delete
+                    </button>
+                  </div>
                 </div>
+
                 <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap">
                   {item.message}
                 </p>
+
+                {/* STATUS PROGRESS BAR / DROPDOWN */}
+                <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                    Progress Status:
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUpdateStatus(item.id, 'pending')}
+                      className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                        item.status === 'pending' || !item.status
+                          ? 'bg-amber-500 text-neutral-950 font-bold'
+                          : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      🟡 Pending
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus(item.id, 'in_progress')}
+                      className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                        item.status === 'in_progress'
+                          ? 'bg-blue-500 text-white font-bold'
+                          : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      🔵 In Progress
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus(item.id, 'resolved')}
+                      className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg transition-all ${
+                        item.status === 'resolved'
+                          ? 'bg-emerald-500 text-neutral-950 font-bold'
+                          : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      🟢 Resolved
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
