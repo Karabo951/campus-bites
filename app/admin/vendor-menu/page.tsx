@@ -217,6 +217,20 @@ export default function AdminVendorPage() {
         </div>
 
         {/* Navigation Tabs */}
+        <div className="flex gap-2 border-b border-neutral-800 pb-4 mb-6">
+  {/* Existing Admin Tabs */}
+  <button className="px-4 py-2 text-xs font-bold bg-neutral-800 text-white rounded-xl">
+    Manage Menu
+  </button>
+  
+  {/* NEW: View Enquiries Link */}
+  <Link
+    href="/admin/enquiries"
+    className="px-4 py-2 text-xs font-bold bg-neutral-900 border border-neutral-800 text-amber-400 hover:text-amber-300 rounded-xl transition-colors"
+  >
+    📬 Customer Enquiries
+  </Link>
+</div>
         <div className="flex gap-4 border-b border-neutral-800 pb-2">
           <button
             onClick={() => setActiveTab('menu')}
