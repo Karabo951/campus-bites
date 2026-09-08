@@ -61,7 +61,7 @@ export default function Home() {
         </Link>
             <Link
               href="/admin/vendor-menu"
-              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-orange-400 font-bold px-4 py-3 rounded-xl text-xs uppercase tracking-wider transition-all"
+              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-orange-400 font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all"
             >
               ⚙️ Manage Vendors
             </Link>
