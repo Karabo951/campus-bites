@@ -8,6 +8,7 @@ interface Vendor {
   id: string;
   name: string;
   description: string;
+  logo_url?: string;
 }
 
 interface MenuItem {
@@ -18,6 +19,7 @@ interface MenuItem {
   category: string;
   description: string;
   is_available: boolean;
+  image_url?: string;
 }
 
 interface Enquiry {
@@ -45,7 +47,10 @@ export default function AdminVendorPage() {
 
   // Forms State
   const [newVendor, setNewVendor] = useState({ id: '', name: '', description: '' });
+  const [vendorLogoFile, setVendorLogoFile] = useState<File | null>(null);
+
   const [newDish, setNewDish] = useState({ name: '', price: '', category: 'Mains', description: '' });
+  const [dishImageFile, setDishImageFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'menu' | 'enquiries'>('menu');
@@ -124,7 +129,6 @@ export default function AdminVendorPage() {
       alert(`Failed to delete vendor: ${vendorError.message}`);
     } else {
       alert('Vendor deleted successfully!');
-      // Re-fetch clean list directly from Supabase
       await fetchVendors();
     }
   };
@@ -143,14 +147,39 @@ export default function AdminVendorPage() {
 
   const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVendor.id || !newVendor.name) return alert('Fill in Vendor ID and Name');
+    if (!newVendor.name) return alert('Please provide a Vendor Name');
 
-    const { error } = await supabase.from('vendors').insert([newVendor]);
+    // Auto-generate ID if user left it blank
+    const vendorId = newVendor.id.trim() !== '' ? newVendor.id.trim() : `v_${Date.now()}`;
+
+    let logoUrl = '';
+
+    // Handle optional Logo Upload
+    if (vendorLogoFile) {
+      const filePath = `vendors/${Date.now()}_${vendorLogoFile.name}`;
+      const { error: uploadError } = await supabase.storage.from('images').upload(filePath, vendorLogoFile);
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('images').getPublicUrl(filePath);
+        logoUrl = urlData.publicUrl;
+      }
+    }
+
+    const { error } = await supabase.from('vendors').insert([
+      {
+        id: vendorId,
+        name: newVendor.name,
+        description: newVendor.description,
+        logo_url: logoUrl || null,
+      },
+    ]);
+
     if (error) {
       alert(`Error creating vendor: ${error.message}`);
     } else {
       alert('Vendor created successfully!');
       setNewVendor({ id: '', name: '', description: '' });
+      setVendorLogoFile(null);
       fetchVendors();
     }
   };
@@ -163,6 +192,19 @@ export default function AdminVendorPage() {
     const priceNum = parseFloat(newDish.price);
     if (isNaN(priceNum)) return alert('Invalid price format');
 
+    let dishImageUrl = '';
+
+    // Handle Dish Image Upload
+    if (dishImageFile) {
+      const filePath = `dishes/${Date.now()}_${dishImageFile.name}`;
+      const { error: uploadError } = await supabase.storage.from('images').upload(filePath, dishImageFile);
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('images').getPublicUrl(filePath);
+        dishImageUrl = urlData.publicUrl;
+      }
+    }
+
     const { error } = await supabase.from('menu_items').insert([
       {
         vendor_id: selectedVendorId,
@@ -171,6 +213,7 @@ export default function AdminVendorPage() {
         category: newDish.category,
         description: newDish.description,
         is_available: true,
+        image_url: dishImageUrl || null,
       },
     ]);
 
@@ -178,6 +221,7 @@ export default function AdminVendorPage() {
       alert(`Error adding dish: ${error.message}`);
     } else {
       setNewDish({ name: '', price: '', category: 'Mains', description: '' });
+      setDishImageFile(null);
       fetchMenuItems(selectedVendorId);
     }
   };
@@ -251,6 +295,8 @@ export default function AdminVendorPage() {
     );
   }
 
+  const activeVendorObj = vendors.find((v) => v.id === selectedVendorId);
+
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -306,17 +352,18 @@ export default function AdminVendorPage() {
               <form onSubmit={handleCreateVendor} className="grid sm:grid-cols-3 gap-3">
                 <input
                   type="text"
-                  placeholder="Vendor ID (e.g. v3)"
+                  placeholder="Vendor ID (Optional - Auto Generated)"
                   value={newVendor.id}
                   onChange={(e) => setNewVendor({ ...newVendor, id: e.target.value })}
                   className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
                 />
                 <input
                   type="text"
-                  placeholder="Vendor Name"
+                  placeholder="Vendor Name *"
                   value={newVendor.name}
                   onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })}
                   className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
+                  required
                 />
                 <input
                   type="text"
@@ -325,6 +372,18 @@ export default function AdminVendorPage() {
                   onChange={(e) => setNewVendor({ ...newVendor, description: e.target.value })}
                   className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
                 />
+                
+                {/* Vendor Logo Upload */}
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-neutral-400">Vendor Logo / Profile Picture (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => e.target.files && setVendorLogoFile(e.target.files[0])}
+                    className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-xs text-neutral-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-neutral-200"
+                  />
+                </div>
+
                 <button
                   type="submit"
                   className="sm:col-span-3 bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black p-3 rounded-xl text-xs uppercase transition-colors"
@@ -337,7 +396,17 @@ export default function AdminVendorPage() {
             {/* Select Active Vendor & Remove Vendor */}
             <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <span className="text-xs font-bold uppercase text-neutral-400">Managing Menu For:</span>
+                <div className="flex items-center gap-3">
+                  {activeVendorObj?.logo_url && (
+                    <img
+                      src={activeVendorObj.logo_url}
+                      alt="Vendor Logo"
+                      className="w-8 h-8 rounded-full object-cover border border-orange-500/40"
+                    />
+                  )}
+                  <span className="text-xs font-bold uppercase text-neutral-400">Managing Menu For:</span>
+                </div>
+                
                 <div className="flex items-center gap-2">
                   <select
                     value={selectedVendorId}
@@ -400,6 +469,18 @@ export default function AdminVendorPage() {
                     className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
                   />
                 </div>
+
+                {/* Dish Picture Upload */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-neutral-400">Dish Picture (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => e.target.files && setDishImageFile(e.target.files[0])}
+                    className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-xs text-neutral-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-neutral-200"
+                  />
+                </div>
+
                 <button
                   type="submit"
                   className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black p-3 rounded-xl text-xs uppercase transition-colors"
@@ -421,16 +502,29 @@ export default function AdminVendorPage() {
                   {menuItems.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl flex justify-between items-center"
+                      className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl flex gap-4 items-center justify-between"
                     >
-                      <div>
-                        <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                        <p className="text-xs text-orange-400 font-mono font-bold">R{item.price.toFixed(2)}</p>
-                        <p className="text-[10px] text-neutral-500">{item.description}</p>
+                      <div className="flex gap-3 items-center">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-14 h-14 rounded-lg object-cover border border-neutral-800 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center justify-center text-xs text-neutral-600 shrink-0">
+                            No Img
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-white text-sm">{item.name}</h4>
+                          <p className="text-xs text-orange-400 font-mono font-bold">R{item.price.toFixed(2)}</p>
+                          <p className="text-[10px] text-neutral-500">{item.description}</p>
+                        </div>
                       </div>
                       <button
                         onClick={() => handleDeleteDish(item.id)}
-                        className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition-colors"
+                        className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition-colors shrink-0"
                       >
                         Delete
                       </button>
