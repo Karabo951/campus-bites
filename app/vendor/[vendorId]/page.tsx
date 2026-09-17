@@ -12,12 +12,14 @@ interface MenuItem {
   price: number;
   category: string;
   is_available: boolean;
+  image_url?: string;
 }
 
 interface Vendor {
   id: string;
   name: string;
   description: string;
+  logo_url?: string;
 }
 
 export default function VendorMenuPage() {
@@ -148,12 +150,25 @@ export default function VendorMenuPage() {
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
-          <h1 className="text-2xl font-black text-white tracking-tight">
-            {vendor?.name || 'CampusCrunch'}
-          </h1>
+          <div className="flex items-center gap-3">
+            {vendor?.logo_url ? (
+              <img
+                src={vendor.logo_url}
+                alt={vendor.name}
+                className="w-10 h-10 rounded-xl object-cover border border-neutral-800"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-lg">
+                🏪
+              </div>
+            )}
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              {vendor?.name || 'CampusCrunch'}
+            </h1>
+          </div>
           <Link
             href="/"
-            className="bg-neutral-900 text-neutral-300 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-800"
+            className="bg-neutral-900 text-neutral-300 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-800 hover:bg-neutral-800 transition-colors"
           >
             &larr; Back Home
           </Link>
@@ -166,19 +181,33 @@ export default function VendorMenuPage() {
               key={item.id}
               className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex flex-col justify-between space-y-4"
             >
-              <div>
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-white">{item.name}</h3>
-                  <span className="font-mono text-sm font-bold text-orange-400">
-                    R{item.price.toFixed(2)}
-                  </span>
+              <div className="flex items-start gap-4">
+                {item.image_url ? (
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    className="w-20 h-20 rounded-xl object-cover border border-neutral-800 shrink-0"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-center text-2xl shrink-0">
+                    🍔
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-bold text-white text-base truncate">{item.name}</h3>
+                    <span className="font-mono text-sm font-bold text-orange-400 shrink-0">
+                      R{item.price.toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{item.description}</p>
                 </div>
-                <p className="text-xs text-neutral-400 mt-2">{item.description}</p>
               </div>
 
               <button
                 onClick={() => addToCart(item)}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-2.5 rounded-xl text-xs uppercase transition-colors"
               >
                 + Add To Cart
               </button>
@@ -197,9 +226,9 @@ export default function VendorMenuPage() {
             </div>
             <button
               onClick={() => setShowCheckoutModal(true)}
-              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase"
+              className="bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black px-6 py-3 rounded-xl text-xs uppercase transition-colors"
             >
-             Pay at Counter ({cart.reduce((s, c) => s + c.quantity, 0)})
+              Pay at Counter ({cart.reduce((s, c) => s + c.quantity, 0)})
             </button>
           </div>
         )}
@@ -247,14 +276,14 @@ export default function VendorMenuPage() {
                   <button
                     type="button"
                     onClick={() => setShowCheckoutModal(false)}
-                    className="w-1/2 bg-neutral-950 border border-neutral-800 text-neutral-400 font-bold py-3 rounded-xl text-xs"
+                    className="w-1/2 bg-neutral-950 border border-neutral-800 text-neutral-400 font-bold py-3 rounded-xl text-xs hover:bg-neutral-800 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-1/2 bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase disabled:opacity-50"
+                    className="w-1/2 bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl text-xs uppercase disabled:opacity-50 transition-colors"
                   >
                     {submitting ? 'Generating Slip...' : 'Confirm Order'}
                   </button>
