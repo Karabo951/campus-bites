@@ -63,7 +63,7 @@ export default function AdminVendorPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'menu' | 'enquiries'>('menu');
 
-  // Supabase Auth Check Replacing PIN Lock
+  // Supabase Auth Check
   useEffect(() => {
     async function checkUserSession() {
       setAuthLoading(true);
@@ -96,13 +96,15 @@ export default function AdminVendorPage() {
     }
   }, [selectedVendorId]);
 
+  const activeVendorObj = vendors.find((v) => v.id === selectedVendorId);
+  const isOwner = activeVendorObj?.user_id === currentUserId;
+
   const fetchVendors = async () => {
     const { data, error } = await supabase.from('vendors').select('*').order('name', { ascending: true });
     if (error) return console.error('Error fetching vendors:', error);
 
     if (data && data.length > 0) {
       setVendors(data);
-      // Auto-select logged in vendor's profile if linked, otherwise default to first
       const myVendor = data.find((v) => v.user_id === currentUserId);
       if (myVendor) {
         setSelectedVendorId(myVendor.id);
@@ -179,6 +181,10 @@ export default function AdminVendorPage() {
   const handleUpdateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingVendor) return;
+    
+    if (editingVendor.user_id !== currentUserId) {
+      return alert('Unauthorized: You can only edit your own store details.');
+    }
 
     let updatedLogoUrl = editingVendor.logo_url;
 
@@ -198,7 +204,8 @@ export default function AdminVendorPage() {
         description: editingVendor.description,
         logo_url: updatedLogoUrl,
       })
-      .eq('id', editingVendor.id);
+      .eq('id', editingVendor.id)
+      .eq('user_id', currentUserId);
 
     if (error) alert(`Failed to update vendor: ${error.message}`);
     else {
@@ -210,10 +217,11 @@ export default function AdminVendorPage() {
   };
 
   const handleDeleteVendor = async (vendorId: string) => {
+    if (!isOwner) return alert('Unauthorized: You can only delete your own store.');
     if (!confirm('Are you sure you want to delete this vendor? This will remove all associated menu items.')) return;
 
     await supabase.from('menu_items').delete().eq('vendor_id', vendorId);
-    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
+    const { error } = await supabase.from('vendors').delete().eq('id', vendorId).eq('user_id', currentUserId);
 
     if (error) alert(`Failed to delete vendor: ${error.message}`);
     else {
@@ -225,6 +233,7 @@ export default function AdminVendorPage() {
   const handleAddDish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendorId) return alert('Please select a vendor first');
+    if (!isOwner) return alert('Unauthorized: You cannot add dishes to another vendor\'s menu.');
     if (!newDish.name || !newDish.price) return alert('Provide dish name and price');
 
     const priceNum = parseFloat(newDish.price);
@@ -265,6 +274,7 @@ export default function AdminVendorPage() {
   const handleUpdateDish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDish) return;
+    if (!isOwner) return alert('Unauthorized: You cannot update another vendor\'s dish.');
 
     let updatedImageUrl = editingDish.image_url;
 
@@ -286,7 +296,8 @@ export default function AdminVendorPage() {
         description: editingDish.description,
         image_url: updatedImageUrl,
       })
-      .eq('id', editingDish.id);
+      .eq('id', editingDish.id)
+      .eq('vendor_id', selectedVendorId);
 
     if (error) alert(`Failed to update dish: ${error.message}`);
     else {
@@ -298,8 +309,15 @@ export default function AdminVendorPage() {
   };
 
   const handleDeleteDish = async (id: number) => {
+    if (!isOwner) return alert('Unauthorized: You cannot delete another vendor\'s dish.');
     if (!confirm('Delete this menu item?')) return;
-    const { error } = await supabase.from('menu_items').delete().eq('id', id);
+
+    const { error } = await supabase
+      .from('menu_items')
+      .delete()
+      .eq('id', id)
+      .eq('vendor_id', selectedVendorId);
+
     if (error) alert(`Error: ${error.message}`);
     else fetchMenuItems(selectedVendorId);
   };
@@ -322,8 +340,6 @@ export default function AdminVendorPage() {
       </main>
     );
   }
-
-  const activeVendorObj = vendors.find((v) => v.id === selectedVendorId);
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100 p-6 sm:p-12">
@@ -442,13 +458,13 @@ export default function AdminVendorPage() {
                     ) : (
                       vendors.map((v) => (
                         <option key={v.id} value={v.id}>
-                          {v.name} ({v.id})
+                          {v.name} ({v.id}) {v.user_id === currentUserId ? '• Your Store' : ''}
                         </option>
                       ))
                     )}
                   </select>
 
-                  {activeVendorObj && (
+                  {activeVendorObj && isOwner && (
                     <button
                       type="button"
                       onClick={() => setEditingVendor(activeVendorObj)}
@@ -458,7 +474,7 @@ export default function AdminVendorPage() {
                     </button>
                   )}
 
-                  {selectedVendorId && (
+                  {selectedVendorId && isOwner && (
                     <button
                       type="button"
                       onClick={() => handleDeleteVendor(selectedVendorId)}
@@ -470,58 +486,66 @@ export default function AdminVendorPage() {
                 </div>
               </div>
 
+              {!isOwner && activeVendorObj && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-xs">
+                  Read-only view: You are viewing <strong>{activeVendorObj.name}</strong>. Switch to your owned store to make edits.
+                </div>
+              )}
+
               {/* Add New Dish Form */}
-              <form onSubmit={handleAddDish} className="space-y-3 pt-4 border-t border-neutral-800">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">+ Add New Dish</h3>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Dish Name"
-                    value={newDish.name}
-                    onChange={(e) => setNewDish({ ...newDish, name: e.target.value })}
-                    className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Price in ZAR"
-                    value={newDish.price}
-                    onChange={(e) => setNewDish({ ...newDish, price: e.target.value })}
-                    className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Category"
-                    value={newDish.category}
-                    onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
-                    className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Description"
-                    value={newDish.description}
-                    onChange={(e) => setNewDish({ ...newDish, description: e.target.value })}
-                    className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
-                  />
-                </div>
+              {isOwner ? (
+                <form onSubmit={handleAddDish} className="space-y-3 pt-4 border-t border-neutral-800">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">+ Add New Dish</h3>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Dish Name"
+                      value={newDish.name}
+                      onChange={(e) => setNewDish({ ...newDish, name: e.target.value })}
+                      className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Price in ZAR"
+                      value={newDish.price}
+                      onChange={(e) => setNewDish({ ...newDish, price: e.target.value })}
+                      className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Category"
+                      value={newDish.category}
+                      onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
+                      className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Description"
+                      value={newDish.description}
+                      onChange={(e) => setNewDish({ ...newDish, description: e.target.value })}
+                      className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-xs text-white"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-neutral-400">Dish Picture (Optional)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => e.target.files && setDishImageFile(e.target.files[0])}
-                    className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-xs text-neutral-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-neutral-200"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-neutral-400">Dish Picture (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => e.target.files && setDishImageFile(e.target.files[0])}
+                      className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-xs text-neutral-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-neutral-200"
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black p-3 rounded-xl text-xs uppercase transition-colors"
-                >
-                  Save & Publish Dish
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black p-3 rounded-xl text-xs uppercase transition-colors"
+                  >
+                    Save & Publish Dish
+                  </button>
+                </form>
+              ) : null}
             </div>
 
             {/* Menu List */}
@@ -557,20 +581,22 @@ export default function AdminVendorPage() {
                         </div>
                       </div>
 
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          onClick={() => setEditingDish(item)}
-                          className="bg-neutral-800 text-neutral-200 border border-neutral-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-neutral-700 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDish(item.id)}
-                          className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      {isOwner && (
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => setEditingDish(item)}
+                            className="bg-neutral-800 text-neutral-200 border border-neutral-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-neutral-700 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDish(item.id)}
+                            className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -756,7 +782,7 @@ export default function AdminVendorPage() {
                   type="submit"
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-neutral-950 font-bold py-2.5 rounded-xl text-xs uppercase"
                 >
-                  Save Changes
+                  Update Dish
                 </button>
                 <button
                   type="button"
