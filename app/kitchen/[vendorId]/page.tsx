@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 interface Order {
   id: string;
@@ -11,33 +12,74 @@ interface Order {
   created_at: string;
 }
 
-const DEFAULT_KITCHEN_PIN = '2468'; // Default lock PIN
+interface Vendor {
+  id: string;
+  name: string;
+}
 
 export default function KitchenDisplayPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Check saved lock state on load
+  // 1. Check existing session and fetch linked vendor profile
   useEffect(() => {
-    const savedAuth = localStorage.getItem('kds_authenticated');
-    if (savedAuth === 'true') {
-      setIsAuthenticated(true);
+    async function checkAuthAndVendor() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        await fetchVendorProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
     }
+
+    checkAuthAndVendor();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchVendorProfile(session.user.id);
+      } else {
+        setVendor(null);
+        setOrders([]);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch orders and subscribe to live realtime updates when authenticated
+  async function fetchVendorProfile(userId: string) {
+    const { data, error } = await supabase
+      .from('vendors')
+      .select('id, name')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      console.error('Vendor profile missing for user:', error?.message);
+    } else {
+      setVendor(data as Vendor);
+    }
+  }
+
+  // 2. Fetch orders and listen to real-time changes filtered by vendor_id
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!vendor?.id) return;
 
     async function fetchOrders() {
       setLoading(true);
       const { data } = await supabase
         .from('orders')
         .select('*')
+        .eq('vendor_id', vendor?.id)
         .neq('status', 'completed')
         .order('created_at', { ascending: true });
 
@@ -48,13 +90,21 @@ export default function KitchenDisplayPage() {
     fetchOrders();
 
     const subscription = supabase
-      .channel('kitchen_orders')
+      .channel(`kitchen_orders_${vendor.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders',
+          filter: `vendor_id=eq.${vendor.id}`
+        },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setOrders((prev) => [...prev, payload.new as Order]);
+            const newOrder = payload.new as Order;
+            if (newOrder.status !== 'completed') {
+              setOrders((prev) => [...prev, newOrder]);
+            }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Order;
             if (updated.status === 'completed') {
@@ -72,24 +122,26 @@ export default function KitchenDisplayPage() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [isAuthenticated]);
+  }, [vendor?.id]);
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === DEFAULT_KITCHEN_PIN) {
-      setIsAuthenticated(true);
-      localStorage.setItem('kds_authenticated', 'true');
-      setPinError(false);
-      setPinInput('');
-    } else {
-      setPinError(true);
-      setPinInput('');
+    setAuthLoading(true);
+    setAuthError('');
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setAuthError(error.message);
     }
+    setAuthLoading(false);
   };
 
-  const handleLock = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('kds_authenticated');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const handleUpdateStatus = async (orderId: string, currentStatus: string) => {
@@ -105,23 +157,25 @@ export default function KitchenDisplayPage() {
         : prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
     );
 
-    // Database update
     const { error } = await supabase
       .from('orders')
       .update({ status: nextStatus })
       .eq('id', orderId);
 
     if (error) {
-      console.error('Failed to update status in Supabase:', error.message);
+      console.error('Failed to update status:', error.message);
       alert(`Status update failed: ${error.message}`);
 
-      // Revert optimistic state on failure
-      const { data } = await supabase
-        .from('orders')
-        .select('*')
-        .neq('status', 'completed')
-        .order('created_at', { ascending: true });
-      if (data) setOrders(data as Order[]);
+      // Revert optimistic state
+      if (vendor?.id) {
+        const { data } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('vendor_id', vendor.id)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: true });
+        if (data) setOrders(data as Order[]);
+      }
     }
   };
 
@@ -151,40 +205,64 @@ export default function KitchenDisplayPage() {
     }
   };
 
-  // PIN Access Modal Gate
-  if (!isAuthenticated) {
+  // Auth Gate
+  if (!user) {
     return (
       <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
-        <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
-            🔒
-          </div>
-          <div>
+        <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
+              👨‍🍳
+            </div>
             <h1 className="text-xl font-black uppercase tracking-wider text-white">
-              Kitchen Display System
+              Kitchen Display Login
             </h1>
-            <p className="text-xs text-neutral-400 mt-1">
-              Enter staff PIN to access active orders
+            <p className="text-xs text-neutral-400">
+              Log in with your vendor account to view active store orders
             </p>
           </div>
 
-          <form onSubmit={handlePinSubmit} className="space-y-4">
-            <input
-              type="password"
-              maxLength={4}
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              placeholder="Enter PIN (Default: 1234)"
-              className="w-full bg-neutral-950 border border-neutral-800 text-center text-2xl tracking-[0.5em] font-mono py-3 rounded-xl text-white focus:outline-none focus:border-amber-500"
-            />
-            {pinError && (
-              <p className="text-xs text-red-400 font-bold">Incorrect PIN. Try 1234.</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="vendor@campus.ac.za"
+                className="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {authError && (
+              <p className="text-xs text-red-400 font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20">
+                {authError}
+              </p>
             )}
+
             <button
               type="submit"
-              className="w-full bg-amber-500 hover:bg-amber-600 text-neutral-950 font-black py-3 rounded-xl uppercase tracking-wider text-xs transition-colors"
+              disabled={authLoading}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-neutral-950 font-black py-3 rounded-xl uppercase tracking-wider text-xs transition-colors disabled:opacity-50"
             >
-              Unlock Display
+              {authLoading ? 'Signing in...' : 'Sign In To Kitchen'}
             </button>
           </form>
         </div>
@@ -200,7 +278,9 @@ export default function KitchenDisplayPage() {
             <h1 className="text-2xl font-black tracking-wider uppercase">
               Kitchen Display System
             </h1>
-            <p className="text-xs text-emerald-400 font-mono">Vendor Unit: V1</p>
+            <p className="text-xs text-emerald-400 font-mono">
+              Store: {vendor ? vendor.name : 'Loading vendor...'}
+            </p>
           </div>
           <div className="flex items-center gap-4">
             <div className="bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-xl text-center">
@@ -212,19 +292,23 @@ export default function KitchenDisplayPage() {
               </span>
             </div>
             <button
-              onClick={handleLock}
-              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+              onClick={handleLogout}
+              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 font-bold px-3 py-2 rounded-xl text-xs transition-colors"
             >
-              🔒 Lock KDS
+              Sign Out
             </button>
           </div>
         </header>
 
         {loading ? (
           <p className="text-neutral-500 text-sm">Loading tickets...</p>
+        ) : !vendor ? (
+          <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-2xl text-center text-amber-400">
+            No vendor store linked to this account. Ensure your user ID is added to the vendors table.
+          </div>
         ) : orders.length === 0 ? (
           <div className="bg-neutral-900 border border-neutral-800 p-12 rounded-2xl text-center text-neutral-500 font-bold">
-            No active orders in kitchen queue
+            No active orders in kitchen queue for {vendor.name}
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
