@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
@@ -9,6 +10,7 @@ interface Vendor {
   name: string;
   description: string;
   logo_url?: string;
+  user_id?: string;
 }
 
 interface MenuItem {
@@ -32,12 +34,11 @@ interface Enquiry {
   created_at: string;
 }
 
-const ADMIN_PIN = '040301';
-
 export default function AdminVendorPage() {
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Vendor & Menu State
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -62,17 +63,30 @@ export default function AdminVendorPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'menu' | 'enquiries'>('menu');
 
+  // Supabase Auth Check Replacing PIN Lock
   useEffect(() => {
-    if (localStorage.getItem('admin_authenticated') === 'true') {
-      setIsAdminAuthenticated(true);
+    async function checkUserSession() {
+      setAuthLoading(true);
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        setIsAuthenticated(false);
+        router.push('/login');
+      } else {
+        setIsAuthenticated(true);
+        setCurrentUserId(user.id);
+      }
+      setAuthLoading(false);
     }
-  }, []);
+
+    checkUserSession();
+  }, [router]);
 
   useEffect(() => {
-    if (!isAdminAuthenticated) return;
+    if (!isAuthenticated) return;
     fetchVendors();
     fetchEnquiries();
-  }, [isAdminAuthenticated]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (selectedVendorId) {
@@ -85,10 +99,16 @@ export default function AdminVendorPage() {
   const fetchVendors = async () => {
     const { data, error } = await supabase.from('vendors').select('*').order('name', { ascending: true });
     if (error) return console.error('Error fetching vendors:', error);
-    
+
     if (data && data.length > 0) {
       setVendors(data);
-      setSelectedVendorId((prev) => (data.some((v) => v.id === prev) ? prev : data[0].id));
+      // Auto-select logged in vendor's profile if linked, otherwise default to first
+      const myVendor = data.find((v) => v.user_id === currentUserId);
+      if (myVendor) {
+        setSelectedVendorId(myVendor.id);
+      } else {
+        setSelectedVendorId((prev) => (data.some((v) => v.id === prev) ? prev : data[0].id));
+      }
     } else {
       setVendors([]);
       setSelectedVendorId('');
@@ -116,16 +136,9 @@ export default function AdminVendorPage() {
     if (!error && data) setEnquiries(data as Enquiry[]);
   };
 
-  const handleAdminAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinInput === ADMIN_PIN) {
-      setIsAdminAuthenticated(true);
-      localStorage.setItem('admin_authenticated', 'true');
-      setPinError(false);
-      setPinInput('');
-    } else {
-      setPinError(true);
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   const handleCreateVendor = async (e: React.FormEvent) => {
@@ -145,7 +158,13 @@ export default function AdminVendorPage() {
     }
 
     const { error } = await supabase.from('vendors').insert([
-      { id: vendorId, name: newVendor.name, description: newVendor.description, logo_url: logoUrl || null },
+      {
+        id: vendorId,
+        name: newVendor.name,
+        description: newVendor.description,
+        logo_url: logoUrl || null,
+        user_id: currentUserId,
+      },
     ]);
 
     if (error) alert(`Error creating vendor: ${error.message}`);
@@ -157,7 +176,6 @@ export default function AdminVendorPage() {
     }
   };
 
-  // EDIT EXISTING VENDOR
   const handleUpdateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingVendor) return;
@@ -244,7 +262,6 @@ export default function AdminVendorPage() {
     }
   };
 
-  // EDIT EXISTING DISH
   const handleUpdateDish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDish) return;
@@ -298,36 +315,10 @@ export default function AdminVendorPage() {
     if (!error) fetchEnquiries();
   };
 
-  if (!isAdminAuthenticated) {
+  if (authLoading) {
     return (
       <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
-        <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 bg-orange-500/10 border border-orange-500/20 text-orange-500 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
-            🛡️
-          </div>
-          <div>
-            <h1 className="text-xl font-black uppercase tracking-wider text-white">Admin Portal</h1>
-            <p className="text-xs text-neutral-400 mt-1">Enter Admin PIN to manage vendors & menu items</p>
-          </div>
-
-          <form onSubmit={handleAdminAuth} className="space-y-4">
-            <input
-              type="password"
-              maxLength={6}
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              placeholder="Enter PIN"
-              className="w-full bg-neutral-950 border border-neutral-800 text-center text-2xl tracking-[0.5em] font-mono py-3 rounded-xl text-white focus:outline-none focus:border-orange-500"
-            />
-            {pinError && <p className="text-xs text-red-400 font-bold">Invalid Admin PIN. Try again.</p>}
-            <button
-              type="submit"
-              className="w-full bg-orange-500 hover:bg-orange-600 text-neutral-950 font-black py-3 rounded-xl uppercase tracking-wider text-xs transition-colors"
-            >
-              Unlock Admin Panel
-            </button>
-          </form>
-        </div>
+        <p className="text-xs text-neutral-400 font-mono animate-pulse">Authenticating vendor session...</p>
       </main>
     );
   }
@@ -350,13 +341,10 @@ export default function AdminVendorPage() {
               &larr; Home
             </Link>
             <button
-              onClick={() => {
-                setIsAdminAuthenticated(false);
-                localStorage.removeItem('admin_authenticated');
-              }}
+              onClick={handleLogout}
               className="bg-neutral-900 border border-neutral-800 text-xs px-3 py-2 rounded-xl font-bold text-neutral-400 hover:text-white"
             >
-              🔒 Lock Admin
+              🚪 Sign Out
             </button>
           </div>
         </div>
